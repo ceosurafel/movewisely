@@ -1,0 +1,6 @@
+{
+  "name": "MoveWisely",
+  "description": "Free chess checkup and rating leak detector. Analyze your last 20 games from Chess.com or Lichess to uncover what is holding you back from your next milestone.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
