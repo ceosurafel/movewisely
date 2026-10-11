@@ -2,6 +2,8 @@ name: Live Chess.com Analysis Audit
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
   push:
     branches:
       - release-hardening/locked-ci
@@ -42,4 +44,4 @@ jobs:
         run: bun run lint
 
       - name: Fetch and analyze real public games
-        run: bun run scripts/testLiveHikaruAnalysis.ts
+        run: ./node_modules/.bin/tsx scripts/testLiveHikaruAnalysis.ts
