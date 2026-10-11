@@ -126,11 +126,15 @@ try {
   await waitFor(`document.body.innerText.includes('MOVEWISELY CHECKUP')`, 'result intro card', 5_000);
   console.log('PASS: full demo analysis completed and result intro card rendered.');
 
-  async function advanceStory(expectedText, description) {
+  async function clickNextStory(description) {
     await clickAndWait(
       `(() => { const box = Array.from(document.querySelectorAll('div')).find(x => typeof x.className === 'string' && x.className.includes('max-w-[440px]') && x.className.includes('h-[100dvh]')); if (!box) return false; const rect = box.getBoundingClientRect(); box.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: rect.right - 8, clientY: rect.top + Math.min(240, rect.height / 2) })); return true; })()`,
       `navigate to ${description}`
     );
+  }
+
+  async function advanceStory(expectedText, description) {
+    await clickNextStory(description);
     await waitFor(`document.body.innerText.includes(${JSON.stringify(expectedText)})`, description, 5_000);
     console.log(`PASS: ${description} is displayed.`);
   }
@@ -138,6 +142,15 @@ try {
   await advanceStory('YOUR ACCURACY', 'accuracy story card');
   await advanceStory('BLUNDERS PER GAME', 'blunders story card');
   await advanceStory('OPENING DISCIPLINE', 'opening-errors story card');
+  await clickNextStory('move-level example');
+  await waitFor(
+    `document.body.innerText.includes('Verified from') || document.body.innerText.includes('No Critical Blunder Spotlight')`,
+    'move-level example card',
+    5_000
+  );
+  console.log('PASS: move-level example card is displayed.');
+  await advanceStory('RATING JOURNEY', 'rating journey card');
+  await advanceStory('YOUR LEAKS', 'diagnostic leaks card');
   await advanceStory('PERSONALIZED ROADMAP', 'personalized roadmap');
   const planText = await evaluate('document.body.innerText');
   if (!planText.includes('Your available training time: 15–30 min per day')) {
