@@ -74,6 +74,7 @@ jobs:
           curl --fail --silent http://127.0.0.1:9222/json > /dev/null
 
           bun run scripts/testStockfishBrowser.mjs
+          bun run scripts/testCheckupFlow.mjs
 
   baseline-main:
     name: Verify main baseline end to end
