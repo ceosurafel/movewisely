@@ -17,6 +17,7 @@ import {
   MilestoneBenchmarksSection,
   MethodologySection,
   SampleCheckupsSection,
+  PrivacyNoticeSection,
   Footer,
 } from './components/InfoSections';
 
@@ -128,6 +129,7 @@ export default function App() {
               onSelectSample={handleSelectSample}
               onStartCheckupClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
             />
+            <PrivacyNoticeSection />
           </>
         )}
 
