@@ -4,12 +4,17 @@ on:
   workflow_dispatch:
   pull_request:
     branches: [main]
+    paths:
+      - 'scripts/testLiveHikaruAnalysis.ts'
+      - 'src/services/**'
+      - 'src/types/**'
+      - 'package.json'
+      - 'bun.lock'
   push:
     branches:
       - release-hardening/locked-ci
     paths:
       - 'scripts/testLiveHikaruAnalysis.ts'
-      - '.github/workflows/hikaru-live-audit.yml'
       - 'src/services/**'
       - 'src/types/**'
       - 'package.json'
