@@ -49,6 +49,7 @@ export class PlayerDiagnosticsService {
     importedGames: GameRecord[],
     options?: {
       maxGamesToAnalyze?: number;
+      targetMilestone?: number;
       signal?: AbortSignal;
       onProgress?: (step: string, percent: number) => void;
     }
@@ -110,7 +111,7 @@ export class PlayerDiagnosticsService {
     }
 
     // 2. Perform or Collect Game-by-Game Engine Analyses
-    options?.onProgress?.('Reconstructing positions and running Stockfish engine checks', 25);
+    options?.onProgress?.('Preparing verified game diagnostics', 4);
     const analyzedGameRecords: AnalyzedGameRecord[] = [];
 
     for (let i = 0; i < validGames.length; i++) {
@@ -119,6 +120,8 @@ export class PlayerDiagnosticsService {
       }
 
       const g = validGames[i];
+      const progressAtStart = 5 + Math.floor((i / validGames.length) * 80);
+      options?.onProgress?.(`Analyzing game ${i + 1} of ${validGames.length}`, progressAtStart);
       try {
         const reviewed = await gameAnalysisService.analyzeGame(g, {
           depth: 10,
@@ -164,6 +167,10 @@ export class PlayerDiagnosticsService {
           lossPhase: 'Middlegame',
         });
       }
+      options?.onProgress?.(
+        `Completed game ${i + 1} of ${validGames.length}`,
+        5 + Math.round(((i + 1) / validGames.length) * 80)
+      );
     }
 
     // Partition games into completed, partial, and failed
@@ -219,7 +226,7 @@ export class PlayerDiagnosticsService {
         ? `Analysis cancelled (${completedGames.length} of ${candidates.length} games completed).`
         : `Analysis failed: 0 games analyzed successfully.`;
 
-    options?.onProgress?.('Synthesizing player diagnostics and weakness traces', 70);
+    options?.onProgress?.('Synthesizing player diagnostics and weakness traces', 88);
 
     // 3. Compute Aggregate Game Record strictly from completed games
     let wins = 0;
@@ -252,7 +259,11 @@ export class PlayerDiagnosticsService {
 
     // 4. Rating & Milestone Calibration
     const currentRating = userRating;
-    const targetMilestone = getNextMilestone(currentRating);
+    const requestedTarget = options?.targetMilestone;
+    const targetMilestone =
+      Number.isFinite(requestedTarget) && (requestedTarget as number) > currentRating
+        ? Math.round(requestedTarget as number)
+        : getNextMilestone(currentRating);
     const targetDistance = Math.max(15, targetMilestone - currentRating);
     const targetBenchmark = getBenchmarkForRating(targetMilestone);
 

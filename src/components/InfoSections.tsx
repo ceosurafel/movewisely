@@ -19,7 +19,7 @@ export const HowItWorksSection: React.FC = () => {
             How The Free Checkup Works
           </h2>
           <p className="text-sm text-slate-300 mt-2">
-            No complex installations or engine configurations. We connect to your public game archive and run instant diagnostic audits.
+            No engine installation is needed. We retrieve public game records from your chosen platform and analyze them in your browser. A full batch can take a few minutes.
           </p>
         </div>
 
@@ -65,13 +65,13 @@ export const MilestoneBenchmarksSection: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-xs font-mono uppercase tracking-wider text-teal-400">
-            02. Statistical Calibration
+            02. Internal Reference Guide
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-1">
-            Rating Milestone Benchmarks
+            Internal Rating-Milestone References
           </h2>
           <p className="text-sm text-slate-300 mt-2">
-            Derived from millions of online amateur and club games to give you exact targets for the next 100-point ceiling.
+            These internal reference ranges are heuristic guideposts for reflection, not official platform statistics or independently validated rating predictions.
           </p>
         </div>
 
@@ -80,9 +80,9 @@ export const MilestoneBenchmarksSection: React.FC = () => {
             <thead className="bg-[#050b0e] text-teal-300/80 font-mono uppercase text-[11px] border-b border-teal-950">
               <tr>
                 <th className="py-3 px-4">Rating Cohort</th>
-                <th className="py-3 px-4">Avg Accuracy</th>
-                <th className="py-3 px-4">Blunders / Game</th>
-                <th className="py-3 px-4">Hanging Pieces</th>
+                <th className="py-3 px-4">Reference Accuracy</th>
+                <th className="py-3 px-4">Reference Blunders / Game</th>
+                <th className="py-3 px-4">Reference Hanging Pieces</th>
                 <th className="py-3 px-4">Primary Leak</th>
               </tr>
             </thead>
@@ -121,7 +121,7 @@ export const MethodologySection: React.FC = () => {
             03. Diagnostic Architecture
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-1">
-            Why 20 Games Reveal Everything
+            What a Multi-Game Review Can Reveal
           </h2>
           <p className="text-sm text-slate-300 mt-2">
             MoveWisely highlights recurring patterns in analyzed games to help you choose targeted training priorities.
@@ -135,7 +135,7 @@ export const MethodologySection: React.FC = () => {
               <span>Fast Pattern & Tactical Recognition</span>
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Every turn is verified against piece values and defender counts. When a piece is moved into an attacked square or undefended pieces are left behind, our engine tags the blunder and determines whether it was fatal.
+              Move reviews combine Stockfish evaluations with rule-based diagnostic hints. Tactical labels are estimates and may be imperfect; check the referenced position and engine line before treating a label as definitive.
             </p>
           </div>
 
@@ -145,7 +145,7 @@ export const MethodologySection: React.FC = () => {
               <span>Decisive Phase Distribution</span>
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Do you lose games before castling, in chaotic middlegames, or in converted endgames? Isolating your weakest phase prevents studying the wrong material.
+              Phase breakdowns can help you form training hypotheses from the games analyzed. They are descriptive indicators, not proof of a single cause for a loss.
             </p>
           </div>
         </div>
@@ -202,6 +202,41 @@ export const SampleCheckupsSection: React.FC<InfoSectionsProps> = ({ onSelectSam
   );
 };
 
+
+export const PrivacyNoticeSection: React.FC = () => {
+  return (
+    <section id="privacy" className="py-16 border-t border-teal-950/80 bg-[#070e12]/60">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto">
+          <span className="text-xs font-mono uppercase tracking-wider text-teal-400">
+            Privacy &amp; data
+          </span>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-white mt-2">
+            What happens to your game data?
+          </h2>
+          <div className="mt-4 space-y-3 text-sm text-slate-300 leading-relaxed">
+            <p>
+              MoveWisely asks for a public Chess.com or Lichess username, not your password. Your browser sends requests to the selected platform's public API to retrieve available profile, rating, and game data.
+            </p>
+            <p>
+              In the current implementation, move analysis and report calculations run in your browser using JavaScript and the Stockfish WebAssembly engine. MoveWisely does not include user accounts or an application database that stores your imported game history.
+            </p>
+            <p>
+              Your requests still reach the chess platform you select and the website hosting provider may process standard access and security logs. The page also loads fonts from Google Fonts. Review those providers' respective privacy terms for their handling of requests.
+            </p>
+            <p>
+              If you use a browser or operating-system sharing feature, you choose whether and where to share the report content. Do not submit usernames or game records you are not authorized to use.
+            </p>
+            <p className="text-xs text-slate-400">
+              This is a plain-language summary of the current implementation, not legal advice or a guarantee about third-party providers. Revisit it whenever data flows or hosting services change.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 export const Footer: React.FC = () => {
   return (
     <footer className="border-t border-teal-950/80 bg-[#04080b] py-12 text-slate-400 text-xs">
@@ -215,8 +250,13 @@ export const Footer: React.FC = () => {
           <span>Free chess checkup and rating leak detector</span>
         </div>
 
+        <nav aria-label="Policies and software notices" className="flex flex-wrap justify-center gap-x-4 gap-y-2 text-[11px]">
+          <a href="#privacy" className="text-teal-300 hover:text-white underline underline-offset-4">Privacy overview</a>
+          <a href="/third-party-notices.html" className="text-teal-300 hover:text-white underline underline-offset-4">Third-party licenses</a>
+        </nav>
+
         <div className="text-center sm:text-right text-[11px] text-slate-500">
-          Not affiliated with Chess.com or Lichess. All games retrieved via public APIs.
+          Not affiliated with Chess.com or Lichess. Public game data is requested from their APIs.
         </div>
       </div>
     </footer>

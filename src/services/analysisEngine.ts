@@ -21,6 +21,7 @@ export async function analyzeUserGames(
   userRating: number,
   games: GameRecord[],
   options?: {
+    targetMilestone?: number;
     onProgress?: (step: string, percent: number) => void;
   }
 ): Promise<CheckupAnalysis> {
