@@ -153,15 +153,32 @@ try {
   await advanceStory('YOUR LEAKS', 'diagnostic leaks card');
   await advanceStory('PERSONALIZED ROADMAP', 'personalized roadmap');
   await waitFor(
-    `document.body.innerText.includes('Your available training time: 15–30 min per day')`,
+    `document.body.textContent.includes('Your available training time: 15–30 min per day')`,
     'roadmap reflects the selected daily practice budget',
     5_000
   );
   await waitFor(
-    `document.body.innerText.includes('Session One Checklist')`,
-    'roadmap session checklist',
+    `document.body.textContent.includes('Session One Checklist')`,
+    'roadmap session checklist is present in the report DOM',
     5_000
   );
+  const checklistScrolledIntoView = await evaluate(`(() => {
+    const target = Array.from(document.querySelectorAll('*')).find(
+      element => element.childElementCount === 0 && element.textContent.trim() === 'Session One Checklist'
+    );
+    if (!target) return false;
+    target.scrollIntoView({ block: 'center', behavior: 'auto' });
+    return true;
+  })()`);
+  if (!checklistScrolledIntoView) throw new Error('Could not scroll the roadmap checklist into view.');
+  await waitFor(`(() => {
+    const target = Array.from(document.querySelectorAll('*')).find(
+      element => element.childElementCount === 0 && element.textContent.trim() === 'Session One Checklist'
+    );
+    if (!target) return false;
+    const rect = target.getBoundingClientRect();
+    return rect.top >= 0 && rect.bottom <= window.innerHeight;
+  })()`, 'roadmap checklist can be scrolled into view', 5_000);
   console.log('PASS: roadmap includes session checklist and the selected daily training budget.');
   console.log('PASS: complete checkup setup → actual engine analysis → results-story smoke test passed.');
 } finally {
