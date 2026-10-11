@@ -57,7 +57,7 @@ async function main(): Promise<void> {
 
   const username = 'hikaru';
   const timeControl = 'blitz' as const;
-  const requestedGames = 5;
+  const requestedGames = 20;
 
   console.log('MOVEWISELY LIVE CHESS.COM INTEGRATION AUDIT');
   console.log(`Source: public Chess.com profile ${username}`);
