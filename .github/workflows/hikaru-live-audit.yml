@@ -1,0 +1,45 @@
+name: Live Chess.com Analysis Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - release-hardening/locked-ci
+    paths:
+      - 'scripts/testLiveHikaruAnalysis.ts'
+      - '.github/workflows/hikaru-live-audit.yml'
+      - 'src/services/**'
+      - 'src/types/**'
+      - 'package.json'
+      - 'bun.lock'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: movewisely-hikaru-live-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  live-analysis:
+    name: Analyze Real Hikaru Chess.com Games
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript typecheck
+        run: bun run lint
+
+      - name: Fetch and analyze real public games
+        run: bun run scripts/testLiveHikaruAnalysis.ts
