@@ -26,6 +26,12 @@ MoveWisely is a client-side React + Vite single-page application. It can be host
 
 Cloudflare documents React/Vite Pages builds with output directory `dist`; its current Pages build image supports pinning Bun via `BUN_VERSION`. See the official [React on Pages guide](https://developers.cloudflare.com/pages/framework-guides/deploy-a-react-site/) and [Pages build-image reference](https://developers.cloudflare.com/pages/configuration/build-image/).
 
+## Compatibility with Cloudflare's preinstalled Bun
+
+The committed `bun.lock` deliberately uses lockfile format version 1 so the dependency installer in Cloudflare Pages' current default Bun 1.2.15 can parse it even when the project's `BUN_VERSION` variable has not been applied. CI checks both the pinned Bun 1.4.3 toolchain and Bun 1.2.15. The lockfile version is intentional; do not regenerate it with Bun 1.4+ unless Cloudflare's build environment is also guaranteed to use Bun 1.4+.
+
+The recommended `BUN_VERSION=1.4.3` setting remains useful for matching CI, but the lockfile no longer relies on that setting merely to get through dependency installation.
+
 ## Repository deployment support
 
 - `public/_headers` is copied by Vite to `dist/_headers` and sets basic browser security headers. Hashed Vite assets receive long-lived immutable caching. Stockfish resources receive a shorter cache lifetime so engine file updates do not remain stale for a year.
