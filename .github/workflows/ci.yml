@@ -53,19 +53,24 @@ jobs:
           cp scripts/stockfishBrowserSmoke.html dist/stockfish-browser-smoke.html
           ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173 > /tmp/movewisely-preview.log 2>&1 &
           preview_pid=$!
-          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          "$CHROME_PATH" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run --no-default-browser-check --remote-debugging-address=127.0.0.1 --remote-debugging-port=9222 --remote-allow-origins="*" --user-data-dir=/tmp/movewisely-chrome-profile about:blank > /tmp/movewisely-chrome.log 2>&1 &
+          chrome_pid=$!
+          cleanup() {
+            kill "$chrome_pid" "$preview_pid" 2>/dev/null || true
+          }
+          trap cleanup EXIT
 
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4173/stockfish-browser-smoke.html > /dev/null; then
+            if curl --fail --silent http://127.0.0.1:4173/stockfish-browser-smoke.html > /dev/null &&
+               curl --fail --silent http://127.0.0.1:9222/json > /dev/null; then
               break
             fi
             sleep 1
           done
           curl --fail --silent http://127.0.0.1:4173/stockfish-browser-smoke.html > /dev/null
+          curl --fail --silent http://127.0.0.1:9222/json > /dev/null
 
-          "$CHROME_PATH" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --timeout=30000 --dump-dom http://127.0.0.1:4173/stockfish-browser-smoke.html > /tmp/movewisely-browser-smoke-dom.html
-          cat /tmp/movewisely-browser-smoke-dom.html
-          grep -q '<pre id="status">BROWSER_SMOKE_PASS:' /tmp/movewisely-browser-smoke-dom.html
+          bun run scripts/testStockfishBrowser.mjs
 
   baseline-main:
     name: Verify unchanged main baseline
