@@ -65,7 +65,9 @@ Before announcing a public release:
 - [ ] No failed or partial analysis is silently represented as a completed result.
 - [ ] Move classifications and tactical labels have position-based evidence.
 - [ ] The UI clearly labels experimental/un-calibrated metrics.
-- [ ] Hosting configuration, privacy disclosure, support contact, and an appropriate license are decided before inviting the public.
+- [ ] Hosting configuration and user-facing privacy disclosure are verified on the deployed host.
+- [ ] Support contact and project-level license policy are decided before inviting the public.
+- [ ] Third-party engine license and corresponding source notices remain accessible in the deployed build.
 
 ## Accuracy and limitations
 
@@ -77,7 +79,7 @@ Tactical labels such as forks, pins, hanging pieces, and sacrifices should only 
 
 Do not commit API keys, credentials, private PGNs, user exports, or local environment files. If environment variables are introduced, document their names in a safe example file and keep real values out of version control. Review the hosting configuration and any third-party API usage before collecting user information.
 
-See [SECURITY.md](SECURITY.md) for reporting guidance.
+See [SECURITY.md](SECURITY.md) for reporting guidance and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the distributed Stockfish license/source notice. The app includes a user-facing [privacy overview](https://movewisely.ai.studio/#privacy) and a [third-party notice page](https://movewisely.ai.studio/third-party-notices.html); verify those URLs against the actual production host before release.
 
 ## License
 
