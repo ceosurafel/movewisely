@@ -272,6 +272,7 @@ export default function App() {
             onNewCheckup={handleNewCheckup}
             notice={analysisNotice}
             dailyPracticeBudget={selectedPracticeBudget}
+            goalStyle={selectedGoalStyle}
           />
         )}
       </main>
