@@ -65,10 +65,10 @@ export const MilestoneBenchmarksSection: React.FC = () => {
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <span className="text-xs font-mono uppercase tracking-wider text-teal-400">
-            02. Statistical Calibration
+            02. Internal Reference Guide
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-1">
-            Rating Milestone Benchmarks
+            Internal Rating-Milestone References
           </h2>
           <p className="text-sm text-slate-300 mt-2">
             These internal reference ranges are heuristic guideposts for reflection, not official platform statistics or independently validated rating predictions.
@@ -80,9 +80,9 @@ export const MilestoneBenchmarksSection: React.FC = () => {
             <thead className="bg-[#050b0e] text-teal-300/80 font-mono uppercase text-[11px] border-b border-teal-950">
               <tr>
                 <th className="py-3 px-4">Rating Cohort</th>
-                <th className="py-3 px-4">Avg Accuracy</th>
-                <th className="py-3 px-4">Blunders / Game</th>
-                <th className="py-3 px-4">Hanging Pieces</th>
+                <th className="py-3 px-4">Reference Accuracy</th>
+                <th className="py-3 px-4">Reference Blunders / Game</th>
+                <th className="py-3 px-4">Reference Hanging Pieces</th>
                 <th className="py-3 px-4">Primary Leak</th>
               </tr>
             </thead>
