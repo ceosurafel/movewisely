@@ -5,12 +5,21 @@ import { SAMPLE_PROFILES, SampleProfile } from '../services/sampleData';
 interface HeroSectionProps {
   onStartCheckup: (username: string, platform: Platform, timeControl: TimeControl) => void;
   isLoading: boolean;
+  initialUsername?: string;
+  initialPlatform?: Platform;
+  initialTimeControl?: TimeControl;
 }
 
-export const HeroSection: React.FC<HeroSectionProps> = ({ onStartCheckup, isLoading }) => {
-  const [platform, setPlatform] = useState<Platform>('chesscom');
-  const [username, setUsername] = useState('');
-  const [timeControl, setTimeControl] = useState<TimeControl>('rapid');
+export const HeroSection: React.FC<HeroSectionProps> = ({
+  onStartCheckup,
+  isLoading,
+  initialUsername = '',
+  initialPlatform = 'chesscom',
+  initialTimeControl = 'rapid',
+}) => {
+  const [platform, setPlatform] = useState<Platform>(initialPlatform);
+  const [username, setUsername] = useState(initialUsername);
+  const [timeControl, setTimeControl] = useState<TimeControl>(initialTimeControl);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
