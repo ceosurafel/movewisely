@@ -50,7 +50,7 @@ bun run build
 bun run preview
 ```
 
-Deploy the generated `dist/` output to a static hosting provider configured for a Vite single-page application. Configure SPA fallback routing if the app uses client-side routes.
+Deploy the generated `dist/` output to a static hosting provider configured for a Vite single-page application. For Cloudflare Pages, follow [`CLOUDFLARE_DEPLOYMENT.md`](CLOUDFLARE_DEPLOYMENT.md); the repository includes Cloudflare-compatible response headers in `public/_headers`.
 
 ## Release checklist
 
@@ -79,7 +79,7 @@ Tactical labels such as forks, pins, hanging pieces, and sacrifices should only 
 
 Do not commit API keys, credentials, private PGNs, user exports, or local environment files. If environment variables are introduced, document their names in a safe example file and keep real values out of version control. Review the hosting configuration and any third-party API usage before collecting user information.
 
-See [SECURITY.md](SECURITY.md) for reporting guidance and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the distributed Stockfish license/source notice. The app includes a user-facing [privacy overview](https://movewisely.ai.studio/#privacy) and a [third-party notice page](https://movewisely.ai.studio/third-party-notices.html); verify those URLs against the actual production host before release.
+See [SECURITY.md](SECURITY.md) for reporting guidance and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for the distributed Stockfish license/source notice. The app includes a user-facing [privacy overview](/#privacy) and a [third-party notice page](/third-party-notices.html), using same-origin paths so the links continue to work when deployed to a custom Cloudflare Pages domain.
 
 ## License
 
