@@ -1,9 +1,9 @@
 name: Main Baseline Live Audit
 
 on:
-  push:
+  pull_request:
     branches:
-      - audit/main-real-analysis-2026-10-11
+      - main
 
 permissions:
   contents: read
