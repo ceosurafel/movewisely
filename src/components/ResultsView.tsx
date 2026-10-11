@@ -11,6 +11,7 @@ interface ResultsViewProps {
   onNewCheckup: () => void;
   notice?: string;
   dailyPracticeBudget?: '5–15 min' | '15–30 min' | '30+ min';
+  goalStyle?: 'milestone' | 'beyond';
 }
 
 const TOTAL_SLIDES = 8;
@@ -74,6 +75,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   onNewCheckup,
   notice,
   dailyPracticeBudget = '15–30 min',
+  goalStyle = 'milestone',
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideProgress, setSlideProgress] = useState(0); // 0 to 100
@@ -82,6 +84,10 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [showGamesList, setShowGamesList] = useState(false);
   const [tasks, setTasks] = useState<ActionPlanTask[]>(analysis.actionPlan.tasks);
   const [planStarted, setPlanStarted] = useState(false);
+  const tasksForBudget = useMemo(() => {
+    const maxTasks = dailyPracticeBudget === '5–15 min' ? 1 : dailyPracticeBudget === '15–30 min' ? 2 : tasks.length;
+    return tasks.slice(0, maxTasks);
+  }, [tasks, dailyPracticeBudget]);
 
   // Compute an opening-error rate from completed engine-reviewed user moves only.
   // Missing move-level evidence stays unavailable instead of becoming a fabricated score.
@@ -968,7 +974,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     </div>
                   </div>
                   <p className="text-xs leading-relaxed text-slate-400">
-                    The difference is a planning target only. This report cannot predict how many rating points you will gain or how long improvement will take.
+                    {goalStyle === 'beyond' ? 'Your goal is to reach this milestone and continue beyond it. ' : ''}The difference is a planning target only. This report cannot predict how many rating points you will gain or how long improvement will take.
                   </p>
                 </div>
 
@@ -977,8 +983,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   <div className="text-xs font-mono uppercase tracking-wider text-teal-300 font-semibold">
                     Session One Checklist
                   </div>
+                  <p className="text-[11px] text-slate-500">
+                    Prioritized for {dailyPracticeBudget} of daily study{tasksForBudget.length < tasks.length ? '; continue with the remaining drills in later sessions.' : '.'}
+                  </p>
 
-                  {tasks.map(task => (
+                  {tasksForBudget.map(task => (
                     <div
                       key={task.id}
                       onClick={() => toggleTask(task.id)}
