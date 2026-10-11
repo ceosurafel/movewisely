@@ -152,13 +152,16 @@ try {
   await advanceStory('RATING JOURNEY', 'rating journey card');
   await advanceStory('YOUR LEAKS', 'diagnostic leaks card');
   await advanceStory('PERSONALIZED ROADMAP', 'personalized roadmap');
-  const planText = await evaluate('document.body.innerText');
-  if (!planText.includes('Your available training time: 15–30 min per day')) {
-    throw new Error('The final plan does not reflect the daily practice budget selected in setup.');
-  }
-  if (!planText.includes('Session One Checklist')) {
-    throw new Error('The final report is missing the action-plan checklist.');
-  }
+  await waitFor(
+    `document.body.innerText.includes('Your available training time: 15–30 min per day')`,
+    'roadmap reflects the selected daily practice budget',
+    5_000
+  );
+  await waitFor(
+    `document.body.innerText.includes('Session One Checklist')`,
+    'roadmap session checklist',
+    5_000
+  );
   console.log('PASS: roadmap includes session checklist and the selected daily training budget.');
   console.log('PASS: complete checkup setup → actual engine analysis → results-story smoke test passed.');
 } finally {
