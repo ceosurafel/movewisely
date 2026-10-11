@@ -55,7 +55,6 @@ export const LoadingCheckup: React.FC<LoadingCheckupProps> = ({
             : 'Checking your games against';
 
   const chartPath = 'M 14 104 C 48 104, 70 94, 98 79 S 158 40, 220 18';
-  const activePathLength = Math.round(percent * 2.2);
 
   return (
     <section className="relative min-h-[100dvh] bg-[#050607] text-[#f2f5f5] overflow-hidden">
