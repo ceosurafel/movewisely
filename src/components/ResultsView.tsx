@@ -426,7 +426,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     {accuracyVal}%
                   </div>
                   <span className="text-xs text-slate-400 mt-1 block">
-                    Average across your last 20 games
+                    Average across the {analysis.totalGames} games analyzed
                   </span>
                 </div>
 
@@ -995,7 +995,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     onClick={() => setShowGamesList(!showGamesList)}
                     className="w-full text-center text-xs text-teal-400 hover:text-teal-200 transition-colors underline cursor-pointer"
                   >
-                    {showGamesList ? 'Hide analyzed games ledger' : 'Inspect all 20 analyzed games ledger ↓'}
+                    {showGamesList ? 'Hide analyzed games ledger' : 'Inspect all {analysis.games.length} analyzed games ledger ↓'}
                   </button>
 
                   {showGamesList && (
