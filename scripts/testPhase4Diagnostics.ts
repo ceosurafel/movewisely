@@ -228,6 +228,48 @@ async function runPhase4Tests() {
   assert(checkup.actionPlan.tasks.length > 0, 'Adapter contains action plan tasks');
   assert(Boolean(checkup.spotlightMove && checkup.spotlightMove.bestMoveSan), 'Adapter contains spotlight move');
 
+  // -------------------------------------------------------------
+  // TEST 11: Phase 7 Diagnostic Integrity & Zero-Loss Invariant
+  // -------------------------------------------------------------
+  console.log('\n--- TEST 11: Phase 7 Diagnostic Integrity Verification ---');
+  // 11.1: Player with 0 losses
+  const winGames = testGames.filter(g => g.result === 'win');
+  if (winGames.length >= 2) {
+    const zeroLossDiag = await playerDiagnosticsService.diagnosePlayer(
+      'UndefeatedPlayer',
+      'chesscom',
+      'rapid',
+      1500,
+      winGames
+    );
+    assert(zeroLossDiag.losses === 0, 'Player has 0 losses');
+    assert(zeroLossDiag.phases.isLossDataAvailable === false, 'isLossDataAvailable is false for 0 losses');
+    assert(zeroLossDiag.phases.endgameLossesPct === 0, `Endgame losses % is 0% (never manufactured 100%): ${zeroLossDiag.phases.endgameLossesPct}%`);
+    assert(zeroLossDiag.phases.openingLossesPct === 0, 'Opening losses % is 0%');
+    assert(zeroLossDiag.phases.middlegameLossesPct === 0, 'Middlegame losses % is 0%');
+    assert(zeroLossDiag.phases.weakestPhaseLossPct === 0, 'Weakest phase loss % is 0%');
+    assert(zeroLossDiag.phases.explanation.includes('not applicable'), 'Explanation states phase losses are not applicable');
+  }
+
+  // 11.2: Unrecognized opening metadata
+  const unverifiedOpeningGame: GameRecord = {
+    ...testGames[0],
+    id: 'unverified-op-1',
+    openingName: undefined,
+    eco: undefined,
+  };
+  const unverifiedDiag = await playerDiagnosticsService.diagnosePlayer(
+    'UnknownOpeningPlayer',
+    'chesscom',
+    'rapid',
+    1200,
+    [unverifiedOpeningGame]
+  );
+  assert(unverifiedDiag.openings.length > 0, 'Opening list exists');
+  const reportedOpening = unverifiedDiag.openings[0];
+  assert(reportedOpening.openingName === 'Unknown Opening', `Unverified opening is 'Unknown Opening' (not 'Open Game'): ${reportedOpening.openingName}`);
+  assert(reportedOpening.eco === '', `Unverified eco is empty string (not 'A00'): '${reportedOpening.eco}'`);
+
   console.log('\n================================================================');
   console.log(`🎉 ALL PHASE 4 TESTS PASSED! (${passed}/${total})`);
   console.log('================================================================\n');

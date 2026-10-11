@@ -34,7 +34,7 @@ export interface DiagnosticEvidence {
  */
 export interface VerifiedTacticalPattern {
   id: string;
-  theme: 'hanging_piece' | 'fork' | 'pin' | 'missed_mate' | 'missed_free_piece' | 'queen_vulnerability';
+  theme: 'hanging_piece' | 'fork' | 'pin' | 'missed_mate' | 'missed_free_piece' | 'queen_vulnerability' | 'general_eval_loss';
   title: string;
   occurrences: number;
   averageEvalLossCp: number;
@@ -89,6 +89,7 @@ export interface VerifiedPhaseBreakdown {
   weakestPhase: 'Opening' | 'Middlegame' | 'Endgame';
   weakestPhaseLossPct: number;
   explanation: string;
+  isLossDataAvailable?: boolean;
   phaseEvidences: {
     opening: DiagnosticEvidence[];
     middlegame: DiagnosticEvidence[];

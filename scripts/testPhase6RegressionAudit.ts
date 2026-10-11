@@ -360,6 +360,33 @@ async function runCompleteAudit() {
 
     // Action Plan Tasks
     assert(diag.actionPlan.tasks.length >= 3, 'Action plan contains at least 3 tasks derived from recurring errors');
+
+    // Diagnostic Integrity: Zero Losses Invariant
+    const winGames = profile.games.filter(g => g.result === 'win').slice(0, 2);
+    if (winGames.length >= 2) {
+      const zeroLossDiag = await playerDiagnosticsService.diagnosePlayer(
+        'ZeroLossTest',
+        profile.platform,
+        profile.timeControl,
+        profile.rating,
+        winGames
+      );
+      assert(zeroLossDiag.phases.isLossDataAvailable === false, 'Zero losses correctly marks loss data unavailable');
+      assert(zeroLossDiag.phases.endgameLossesPct === 0, 'Zero losses never manufactures 100% endgame loss');
+      assert(zeroLossDiag.phases.weakestPhaseLossPct === 0, 'Zero losses reports 0% weakest phase loss');
+    }
+
+    // Diagnostic Integrity: Unverified opening defaults to Unknown Opening and empty ECO
+    const unknownOpeningGame: GameRecord = { ...profile.games[0], id: 'unknown-eco-test', openingName: undefined, eco: undefined };
+    const unknownOpDiag = await playerDiagnosticsService.diagnosePlayer(
+      'UnknownOpTest',
+      profile.platform,
+      profile.timeControl,
+      profile.rating,
+      [unknownOpeningGame]
+    );
+    assert(unknownOpDiag.openings[0]?.openingName === 'Unknown Opening', 'Unverified opening defaults to Unknown Opening');
+    assert(unknownOpDiag.openings[0]?.eco === '', 'Unverified opening has empty ECO (never A00)');
   }
 
   // ---------------------------------------------------------------------------
@@ -465,8 +492,9 @@ async function runCompleteAudit() {
   console.log(`Passed: ${totalPassed}`);
   console.log(`Failed: ${totalFailed}`);
 
-  const readinessScore = Math.round((totalPassed / (totalPassed + totalFailed)) * 100);
-  console.log(`Release-Readiness Score: ${readinessScore}% / 100%`);
+  const passRate = Math.round((totalPassed / (totalPassed + totalFailed)) * 100);
+  console.log(`Automated Assertion Pass Rate: ${passRate}% (${totalPassed}/${totalPassed + totalFailed} assertions passing)`);
+  console.log(`Empirical Release-Readiness: Pending independent calibration (automated assertion passes do not constitute a 100% release score).`);
 
   if (totalFailed > 0) {
     console.error(`\nDefects Recorded (${recordedDefects.length}):`);
@@ -475,7 +503,7 @@ async function runCompleteAudit() {
     });
     process.exit(1);
   } else {
-    console.log('\n🎉 ALL PHASE 6 AUDIT AND REGRESSION TESTS PASSED! ZERO CRITICAL DEFECTS.');
+    console.log('\n🎉 ALL REGRESSION SUITE ASSERTIONS PASSED! Structural and logical integrity verified.');
   }
 }
 

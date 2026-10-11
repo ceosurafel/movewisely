@@ -129,6 +129,7 @@ export interface CheckupAnalysis {
     endgameLossesPct: number;
     weakestPhase: 'Opening' | 'Middlegame' | 'Endgame';
     explanation: string;
+    isLossDataAvailable?: boolean;
   };
   openingStats: {
     whiteWinRate: number;

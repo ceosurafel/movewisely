@@ -484,6 +484,71 @@ export class CoachingService {
   }
 
   /**
+   * Evaluates a single analyzed move for genuine, supported tactical motifs.
+   */
+  public detectMoveTacticalMotifs(move: AnalyzedMoveRecord): TacticalThemeEvidence[] {
+    try {
+      if (!move.fenBefore || !move.fenAfter) return [];
+      const chessBefore = new Chess(move.fenBefore);
+      const chessAfterUser = new Chess(move.fenAfter);
+      const continuationSteps = this.extractValidContinuationLine(
+        move.fenAfter,
+        move.pvs,
+        move.color === 'white' ? 'black' : 'white',
+        move.moveNumber
+      );
+      const continuationLineSan = continuationSteps.map(s => s.san);
+      return this.detectTacticalThemes({
+        move,
+        chessBefore,
+        chessAfterUser,
+        continuationLineSan,
+        continuationSteps,
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Verifies if an error or miss overlooked an opponent's hanging or undefended piece.
+   */
+  public checkMissedFreePiece(move: AnalyzedMoveRecord): boolean {
+    if (move.judgment !== 'miss' && move.evalLossCp < 120) {
+      return false;
+    }
+    if (!move.bestMoveSan || !move.bestMoveTo || !move.fenBefore) {
+      return false;
+    }
+    try {
+      const chessBefore = new Chess(move.fenBefore);
+      const bestDest = move.bestMoveTo as Square;
+      const targetPiece = chessBefore.get(bestDest);
+      const oppColor: Color = move.color === 'white' ? 'b' : 'w';
+      const friendlyColor: Color = move.color === 'white' ? 'w' : 'b';
+
+      if (targetPiece && targetPiece.color === oppColor) {
+        const oppDefenders = this.getSquareAttackers(chessBefore, bestDest, oppColor);
+        const friendlyAttackers = this.getSquareAttackers(chessBefore, bestDest, friendlyColor);
+
+        // It is free/hanging if it has zero defenders, or friendly attackers outnumber defenders,
+        // or a lower-value piece trades for a higher-value piece with net material gain
+        const isFree =
+          oppDefenders.length === 0 ||
+          friendlyAttackers.length > oppDefenders.length ||
+          PIECE_VALUES[targetPiece.type] > 1;
+
+        if (isFree && (!move.captured || move.to !== move.bestMoveTo)) {
+          return true;
+        }
+      }
+    } catch {
+      return false;
+    }
+    return false;
+  }
+
+  /**
    * Hanging piece detector: verifies if a piece is left undefended and under attack,
    * or if an undefended piece was captured without compensation.
    */

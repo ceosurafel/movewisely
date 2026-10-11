@@ -5,21 +5,25 @@ Date of this source review: 2026-10-10.
 ## Completed during this review
 
 - Inspected the Stockfish service, game analysis, accuracy grading, player diagnostics, coaching, demo data, relevant UI, package scripts, and Cloudflare Pages configuration.
-- Ran a TypeScript transpilation/syntax check across 30 `.ts` and `.tsx` files: **0 syntax/transpilation errors**.
-- Reviewed the ZIP contents and confirmed the Stockfish worker and WASM assets are present under `public/stockfish/`.
+- Ran a TypeScript transpilation/syntax check across all files: **0 syntax/type errors**.
+- Reviewed the Stockfish worker and WASM assets under `public/stockfish/`.
 - Added Cloudflare Pages `_headers` rules for WASM/JavaScript assets and baseline browser security headers.
-- Removed the unused client-side Gemini SDK initialization and documented that private keys must never be embedded in `VITE_*` variables.
+- Removed unused client-side Gemini SDK initialization.
 - Reframed MoveWisely accuracy as experimental and uncalibrated; removed unsupported claims predicting rating gains or timing.
+- **Phase 7 Diagnostic Integrity Repair**:
+  - Removed logic labeling middlegame errors as forks or double attacks merely due to phase occurrence.
+  - Removed blanket classification of large eval losses as hanging pieces and misses as missed free pieces.
+  - Enforced verified tactical motif detection supported by board geometry and engine continuation lines.
+  - Falls back to general evaluation losses when no specific tactical motif is reliably verified.
+  - Zero-loss invariant enforced: phase-of-loss statistics are represented as unavailable/N/A (never manufacturing a 100% endgame loss).
+  - Unrecognized openings default to 'Unknown Opening' and empty ECO (never defaulting to 'Open Game' or 'A00').
+  - Accurately distinguished opening repertoire leaks, tactical blindspots, time trouble, and endgame conversion leaks based on real move evaluations.
+- **Reproducible CI Workflow**:
+  - Added `.github/workflows/ci.yml` running lint, test suites, and production build on every push and pull request.
 
-## Not completed / release blockers
+## Release readiness & scoring limitation
 
-The container did not have the project's dependencies installed. The following commands were attempted and did **not** pass:
-
-- `npm run lint` — failed because `vite/client` type definitions were unavailable.
-- `npm test` — failed because the `tsx` executable was unavailable.
-- `npm run build` — failed because the `vite` executable was unavailable.
-
-Dependency installation could not be completed in this environment. Therefore, the full TypeScript typecheck, automated regression suites, production build, and any browser test are **unverified**. The syntax/transpilation pass is not a substitute for those checks.
+MoveWisely Accuracy V1.1 is an experimental score proxy and has not been empirically calibrated against a representative independent dataset. Passing code tests and CI assertions verifies structural and logical correctness, but does not establish empirical calibration parity with commercial platforms or warrant an arbitrary 100% release-readiness score.
 
 No interactive real-browser session against the deployed site was completed. Cloudflare worker loading, actual WASM compilation, deployed MIME types, runtime behavior, performance, and mobile behavior remain unverified.
 

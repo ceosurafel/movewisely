@@ -176,14 +176,17 @@ export class GameAnalysisService {
     }
 
     let startingPosition = standardStart;
+    let attemptedStartingFen = standardStart;
     try {
       const fenMatch = pgn.match(/^\s*(?:\[[^\]]+\]\s*)*\[FEN\s+"([^"]+)"\]/im);
       const customStartingFen = fenMatch?.[1]?.trim();
       if (customStartingFen) {
+        attemptedStartingFen = customStartingFen;
         // Validate custom starting positions rather than silently reverting to the
         // orthodox initial position if the supplied FEN is invalid.
         const customPosition = new Chess(customStartingFen);
         startingPosition = customPosition.fen();
+        attemptedStartingFen = startingPosition;
       }
 
       let parsedChess: Chess | null = null;
@@ -272,8 +275,8 @@ export class GameAnalysisService {
     } catch (err: unknown) {
       return {
         moves: [],
-        startingFen: startingPosition,
-        finalFen: startingPosition,
+        startingFen: attemptedStartingFen,
+        finalFen: attemptedStartingFen,
         valid: false,
         error: err instanceof Error ? err.message : String(err),
       };
