@@ -19,7 +19,7 @@ export const HowItWorksSection: React.FC = () => {
             How The Free Checkup Works
           </h2>
           <p className="text-sm text-slate-300 mt-2">
-            No complex installations or engine configurations. We connect to your public game archive and run instant diagnostic audits.
+            No engine installation is needed. We retrieve public game records from your chosen platform and analyze them in your browser. A full batch can take a few minutes.
           </p>
         </div>
 
@@ -71,7 +71,7 @@ export const MilestoneBenchmarksSection: React.FC = () => {
             Rating Milestone Benchmarks
           </h2>
           <p className="text-sm text-slate-300 mt-2">
-            Derived from millions of online amateur and club games to give you exact targets for the next 100-point ceiling.
+            These internal reference ranges are heuristic guideposts for reflection, not official platform statistics or independently validated rating predictions.
           </p>
         </div>
 
@@ -121,7 +121,7 @@ export const MethodologySection: React.FC = () => {
             03. Diagnostic Architecture
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mt-1">
-            Why 20 Games Reveal Everything
+            What a Multi-Game Review Can Reveal
           </h2>
           <p className="text-sm text-slate-300 mt-2">
             MoveWisely highlights recurring patterns in analyzed games to help you choose targeted training priorities.
@@ -135,7 +135,7 @@ export const MethodologySection: React.FC = () => {
               <span>Fast Pattern & Tactical Recognition</span>
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Every turn is verified against piece values and defender counts. When a piece is moved into an attacked square or undefended pieces are left behind, our engine tags the blunder and determines whether it was fatal.
+              Move reviews combine Stockfish evaluations with rule-based diagnostic hints. Tactical labels are estimates and may be imperfect; check the referenced position and engine line before treating a label as definitive.
             </p>
           </div>
 
@@ -145,7 +145,7 @@ export const MethodologySection: React.FC = () => {
               <span>Decisive Phase Distribution</span>
             </h3>
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Do you lose games before castling, in chaotic middlegames, or in converted endgames? Isolating your weakest phase prevents studying the wrong material.
+              Phase breakdowns can help you form training hypotheses from the games analyzed. They are descriptive indicators, not proof of a single cause for a loss.
             </p>
           </div>
         </div>
