@@ -39,3 +39,31 @@ jobs:
 
       - name: Build production bundle
         run: bun run build
+
+  baseline-main:
+    name: Verify unchanged main baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+
+      - name: Install locked dependencies
+        run: bun install --frozen-lockfile
+
+      - name: TypeScript typecheck
+        run: bun run lint
+
+      - name: Run main regression suites
+        run: bun run test
+
+      - name: Build main production bundle
+        run: bun run build
