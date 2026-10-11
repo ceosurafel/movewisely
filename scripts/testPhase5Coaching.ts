@@ -494,8 +494,45 @@ async function runTests() {
     console.log(`    Lesson: ${csm.coaching.practicalLesson}`);
   }
 
+  // -----------------------------------------------------------------------------
+  // Test 8: Free-piece detection must not label a defended target as free
+  // -----------------------------------------------------------------------------
+  console.log('\nTEST 8: Defended vs. Undefended Free-Piece Detection...');
+  {
+    const baseMove = {
+      judgment: 'miss',
+      evalLossCp: 180,
+      bestMoveSan: 'Nxd5',
+      bestMoveTo: 'd5',
+      color: 'white',
+      captured: undefined,
+      to: 'a2',
+    };
+
+    // White's knight attacks the black queen on d5, but Black's c6-pawn defends it.
+    const defendedQueen = {
+      ...baseMove,
+      fenBefore: '4k3/8/2p5/3q4/8/2N5/8/4K3 w - - 0 1',
+    } as AnalyzedMoveRecord;
+    assert(
+      coachingService.checkMissedFreePiece(defendedQueen) === false,
+      'A defended queen must not be falsely classified as a free piece'
+    );
+
+    // Removing the c6-pawn makes the same queen genuinely undefended and capturable.
+    const undefendedQueen = {
+      ...baseMove,
+      fenBefore: '4k3/8/8/3q4/8/2N5/8/4K3 w - - 0 1',
+    } as AnalyzedMoveRecord;
+    assert(
+      coachingService.checkMissedFreePiece(undefendedQueen) === true,
+      'An undefended queen should still be recognized as a missed free piece'
+    );
+    console.log('  ✓ Defended target rejected; undefended target detected.');
+  }
+
   console.log('\n================================================================');
-  console.log('ALL PHASE 5 ENGINE-GROUNDED CHESS COACHING TESTS PASSED (7/7)!');
+  console.log('ALL PHASE 5 ENGINE-GROUNDED CHESS COACHING TESTS PASSED (8/8)!');
   console.log('================================================================');
 }
 
