@@ -43,6 +43,15 @@ jobs:
       - name: Build production bundle
         run: bun run build
 
+      - name: Validate Cloudflare Pages output and legal notices
+        run: |
+          test -s dist/index.html
+          test -s dist/_headers
+          test -s dist/third-party-notices.html
+          test -s dist/stockfish/Copying.txt
+          test -n "$(find dist/assets -maxdepth 1 -type f -name '*.js' -print -quit)"
+          echo "Cloudflare Pages output, security headers, app bundle, and Stockfish license files are present."
+
       - name: Set up headless Chrome
         uses: browser-actions/setup-chrome@v2
         id: setup-chrome
