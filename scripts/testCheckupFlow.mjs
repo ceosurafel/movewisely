@@ -128,7 +128,7 @@ try {
 
   async function clickNextStory(description) {
     await clickAndWait(
-      `(() => { const box = Array.from(document.querySelectorAll('div')).find(x => typeof x.className === 'string' && x.className.includes('max-w-[440px]') && x.className.includes('h-[100dvh]')); if (!box) return false; const rect = box.getBoundingClientRect(); box.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: rect.right - 8, clientY: rect.top + Math.min(240, rect.height / 2) })); return true; })()`,
+      `(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true })); return true; })()`,
       `navigate to ${description}`
     );
   }
@@ -144,7 +144,7 @@ try {
   await advanceStory('OPENING DISCIPLINE', 'opening-errors story card');
   await clickNextStory('move-level example');
   await waitFor(
-    `document.body.innerText.includes('Verified from') || document.body.innerText.includes('No Critical Blunder Spotlight')`,
+    `document.body.innerText.includes('Critical Engine Blunder') || document.body.innerText.includes('No Critical Blunder Spotlight') || document.body.innerText.includes('WAS THE MOVE')`,
     'move-level example card',
     5_000
   );
