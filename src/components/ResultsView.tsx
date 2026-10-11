@@ -10,6 +10,7 @@ interface ResultsViewProps {
   analysis: CheckupAnalysis;
   onNewCheckup: () => void;
   notice?: string;
+  dailyPracticeBudget?: '5–15 min' | '15–30 min' | '30+ min';
 }
 
 const TOTAL_SLIDES = 8;
@@ -72,6 +73,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   analysis,
   onNewCheckup,
   notice,
+  dailyPracticeBudget = '15–30 min',
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slideProgress, setSlideProgress] = useState(0); // 0 to 100
@@ -80,6 +82,32 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [showGamesList, setShowGamesList] = useState(false);
   const [tasks, setTasks] = useState<ActionPlanTask[]>(analysis.actionPlan.tasks);
   const [planStarted, setPlanStarted] = useState(false);
+
+  // Compute an opening-error rate from completed engine-reviewed user moves only.
+  // Missing move-level evidence stays unavailable instead of becoming a fabricated score.
+  const openingErrorsPerGame = useMemo((): number | null => {
+    const records = (analysis.diagnostics as any)?.analyzedGameRecords;
+    if (!Array.isArray(records)) return null;
+    const errorGrades = new Set(['inaccuracy', 'mistake', 'blunder', 'miss']);
+    let completedGames = 0;
+    let openingErrors = 0;
+    for (const record of records) {
+      if (record?.status !== 'completed' || !Array.isArray(record?.analyzedMoves)) continue;
+      completedGames += 1;
+      const userColor = record?.game?.userColor;
+      for (const move of record.analyzedMoves) {
+        if (
+          move?.color === userColor &&
+          Number.isFinite(move?.moveNumber) &&
+          move.moveNumber <= 12 &&
+          errorGrades.has(String(move?.judgment ?? '').toLowerCase())
+        ) {
+          openingErrors += 1;
+        }
+      }
+    }
+    return completedGames > 0 ? Number((openingErrors / completedGames).toFixed(2)) : null;
+  }, [analysis.diagnostics]);
 
   // Counter animations
   const [accuracyVal, setAccuracyVal] = useState(0);
@@ -374,16 +402,17 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                           repeat: Infinity,
                           delay: (i % 5) * 0.12 + Math.floor(i / 5) * 0.15,
                         }}
-                        className={`w-9 h-9 rounded-lg flex items-center justify-center text-xs font-mono font-bold ${
+                        role="img"
+                        aria-label={`Analyzed game ${i + 1}: ${i < analysis.wins ? 'win' : i < analysis.wins + analysis.draws ? 'draw' : 'loss'}`}
+                        title={`Game ${i + 1}: ${i < analysis.wins ? 'Win' : i < analysis.wins + analysis.draws ? 'Draw' : 'Loss'}`}
+                        className={`w-9 h-9 rounded-lg border transition-colors ${
                           i < analysis.wins
-                            ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50'
+                            ? 'bg-[#20b7a8]/60 border-[#2bdac9]/35'
                             : i < analysis.wins + analysis.draws
-                            ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40'
-                            : 'bg-rose-950/40 text-rose-300 border border-rose-800/40'
+                            ? 'bg-[#326b67]/40 border-[#326b67]/30'
+                            : 'bg-[#2b3738]/75 border-[#3d4a4a]/50'
                         }`}
-                      >
-                        {i < analysis.wins ? 'W' : i < analysis.wins + analysis.draws ? 'D' : 'L'}
-                      </motion.div>
+                      />
                     ))}
                   </div>
                   <span className="text-[11px] text-teal-300/80 font-mono mt-3">
@@ -551,49 +580,58 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             )}
 
             {/* ========================================================
-                SLIDE 4: THE VERDICT (Checkerboard background + Bold text)
+                SLIDE 4: OPENING ERRORS (rating-leak story card)
                ======================================================== */}
             {currentSlide === 3 && (
               <motion.div
                 key="slide-3"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.03 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.35 }}
-                className="w-full h-full flex flex-col justify-between p-6 pt-12 pb-20 relative bg-gradient-to-b from-[#0b1c20] via-[#091216] to-black overflow-hidden"
+                className="relative w-full h-full flex flex-col justify-between p-6 pt-12 pb-20 bg-gradient-to-b from-[#4a1017] via-[#250b11] to-[#090609] overflow-hidden"
               >
-                {/* Faded Checkerboard Background */}
-                <div
-                  className="absolute inset-0 opacity-10 pointer-events-none"
-                  style={{
-                    backgroundImage: `linear-gradient(45deg, #2dd4bf 25%, transparent 25%), linear-gradient(-45deg, #2dd4bf 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #2dd4bf 75%), linear-gradient(-45deg, transparent 75%, #2dd4bf 75%)`,
-                    backgroundSize: '40px 40px',
-                    backgroundPosition: '0 0, 0 20px, 20px -20px, -20px 0px',
-                  }}
-                />
-
-                <span className="text-[11px] font-mono font-bold tracking-widest text-teal-400 uppercase relative z-10">
-                  THE VERDICT
-                </span>
-
-                <div className="space-y-6 relative z-10 my-auto text-left">
-                  <h2 className="text-3xl sm:text-4xl font-black text-white leading-tight tracking-tight whitespace-pre-line">
-                    {analysis.emotionalVerdict.isReadyForMilestone
-                      ? 'INTERNAL REFERENCE\nBenchmark met.'
-                      : `${analysis.emotionalVerdict.leaksCount} TRAINING PATTERNS IDENTIFIED`}
-                  </h2>
-
-                  <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-normal">
-                    {analysis.emotionalVerdict.statement}
-                  </p>
-
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-teal-950/70 border border-teal-800/60 text-xs text-teal-300 font-mono">
-                    <span>{analysis.phasesBreakdown.weakestPhase} phase concentration</span>
+                <div className="absolute inset-0 pointer-events-none opacity-[0.12]" aria-hidden="true">
+                  <div className="absolute -right-14 top-16 grid grid-cols-5 gap-1.5 rotate-12">
+                    {Array.from({ length: 35 }).map((_, i) => (
+                      <span key={i} className={`w-8 h-8 rounded ${i % 3 === 0 ? 'bg-rose-300' : 'bg-slate-500'}`} />
+                    ))}
                   </div>
+                </div>
+                <div className="relative z-10">
+                  <span className="text-[11px] font-mono font-bold tracking-widest text-rose-300 uppercase">
+                    OPENING DISCIPLINE
+                  </span>
+                  <h2 className="mt-5 text-3xl font-black text-white">Opening errors</h2>
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <span className="text-6xl sm:text-7xl font-black text-rose-200 font-mono tracking-tight leading-none tabular-nums">
+                      {openingErrorsPerGame === null ? '—' : openingErrorsPerGame.toFixed(2).replace(/0$/, '').replace(/\.$/, '')}
+                    </span>
+                    <span className="text-sm text-slate-400">/ game</span>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-300">
+                    {openingErrorsPerGame === null
+                      ? 'Opening move-level evidence was not available for this report.'
+                      : 'Inaccuracies, mistakes and blunders in your first 12 moves, averaged over completed games.'}
+                  </p>
+                </div>
+
+                <div className="relative z-10 rounded-2xl bg-[#17090d]/80 border border-rose-900/60 p-4">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-rose-300/80">Opening to review</span>
+                  <h3 className="mt-1 text-lg font-bold text-white break-words">{analysis.openingStats.mostFrequentOpening || 'Opening data unavailable'}</h3>
+                  <p className="mt-2 text-xs text-slate-400 leading-relaxed">
+                    Compare your first moves with the engine line and review the positions where your advantage dropped. This is a training signal, not proof that your opening repertoire is the only cause of a loss.
+                  </p>
+                  {analysis.openingStats.topLeakOpening?.name && analysis.openingStats.topLeakOpening.name !== 'None' && (
+                    <div className="mt-3 pt-3 border-t border-rose-900/50">
+                      <span className="block text-[10px] text-slate-500 uppercase tracking-wide">Opening with the weakest observed results</span>
+                      <span className="block mt-1 text-sm font-semibold text-rose-100">{analysis.openingStats.topLeakOpening.name}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="relative z-10 text-xs text-slate-400">
-                  Tap right to inspect the exact move that cost you →
+                  Continue to the move-level example →
                 </div>
               </motion.div>
             )}
@@ -907,6 +945,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
                     {analysis.actionPlan.coreFocus}
+                  </p>
+                  <p className="mt-3 inline-flex items-center rounded-full border border-teal-900/70 bg-teal-950/30 px-3 py-1.5 text-[10px] text-teal-200">
+                    Your available training time: {dailyPracticeBudget} per day
                   </p>
                 </div>
 
