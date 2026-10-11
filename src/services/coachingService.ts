@@ -531,12 +531,14 @@ export class CoachingService {
         const oppDefenders = this.getSquareAttackers(chessBefore, bestDest, oppColor);
         const friendlyAttackers = this.getSquareAttackers(chessBefore, bestDest, friendlyColor);
 
-        // It is free/hanging if it has zero defenders, or friendly attackers outnumber defenders,
-        // or a lower-value piece trades for a higher-value piece with net material gain
+        // Only call a target "free" when the player has a legal attacker and
+        // the target is undefended or is attacked by more pieces than defend it.
+        // Material value alone does not make a piece free: most pieces are valuable,
+        // but they may be fully defended.
         const isFree =
-          oppDefenders.length === 0 ||
-          friendlyAttackers.length > oppDefenders.length ||
-          PIECE_VALUES[targetPiece.type] > 1;
+          friendlyAttackers.length > 0 &&
+          (oppDefenders.length === 0 ||
+            friendlyAttackers.length > oppDefenders.length);
 
         if (isFree && (!move.captured || move.to !== move.bestMoveTo)) {
           return true;
