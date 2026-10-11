@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>STOCKFISH_BROWSER_SMOKE_RUNNING</title>
+</head>
+<body>
+  <h1>MoveWisely browser engine smoke test</h1>
+  <pre id="status">RUNNING</pre>
+  <script>
+    (() => {
+      const status = document.getElementById('status');
+      let worker;
+      let completed = false;
+      let sawUciOk = false;
+      let sawReadyOk = false;
+
+      const finish = (passed, details) => {
+        if (completed) return;
+        completed = true;
+        clearTimeout(timeout);
+        status.textContent = (passed ? 'BROWSER_SMOKE_PASS: ' : 'BROWSER_SMOKE_FAIL: ') + details;
+        document.title = passed ? 'BROWSER_SMOKE_PASS' : 'BROWSER_SMOKE_FAIL';
+        if (worker) worker.terminate();
+      };
+
+      const timeout = setTimeout(() => finish(false, 'Timed out waiting for Stockfish WASM worker search.'), 25000);
+
+      try {
+        worker = new Worker('/stockfish/stockfish-19-lite-single.js');
+        worker.onerror = (event) => finish(false, 'Worker error: ' + (event.message || 'unknown error'));
+        worker.onmessage = (event) => {
+          const line = String(event.data || '').trim();
+
+          if (line === 'uciok' && !sawUciOk) {
+            sawUciOk = true;
+            worker.postMessage('isready');
+            return;
+          }
+
+          if (line === 'readyok' && !sawReadyOk) {
+            sawReadyOk = true;
+            worker.postMessage('position startpos');
+            worker.postMessage('go depth 8');
+            return;
+          }
+
+          if (line.startsWith('bestmove ')) {
+            const move = line.slice('bestmove '.length).trim().split(/\s+/)[0];
+            if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)) {
+              finish(true, 'UCI handshake, WASM load, and depth-8 search passed; bestmove=' + move);
+            } else {
+              finish(false, 'Engine returned an invalid bestmove token: ' + move);
+            }
+          }
+        };
+
+        worker.postMessage('uci');
+      } catch (error) {
+        finish(false, 'Could not create Stockfish Web Worker: ' + String(error));
+      }
+    })();
+  </script>
+</body>
+</html>
