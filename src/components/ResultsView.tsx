@@ -995,7 +995,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     onClick={() => setShowGamesList(!showGamesList)}
                     className="w-full text-center text-xs text-teal-400 hover:text-teal-200 transition-colors underline cursor-pointer"
                   >
-                    {showGamesList ? 'Hide analyzed games ledger' : 'Inspect all {analysis.games.length} analyzed games ledger ↓'}
+                    {showGamesList ? 'Hide analyzed games ledger' : `Inspect all ${analysis.games.length} analyzed games ledger ↓`}
                   </button>
 
                   {showGamesList && (
