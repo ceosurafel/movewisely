@@ -85,6 +85,34 @@ jobs:
           bun run scripts/testStockfishBrowser.mjs
           bun run scripts/testCheckupFlow.mjs
 
+
+  cloudflare-default-bun-compat:
+    name: Cloudflare default Bun 1.2.15 compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Cloudflare default Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.2.15'
+
+      - name: Install the committed lockfile without changes
+        run: bun install --frozen-lockfile
+
+      - name: Build using Cloudflare default Bun
+        run: bun run build
+
+      - name: Verify deployable Pages output
+        run: |
+          test -s dist/index.html
+          test -s dist/_headers
+          test -s dist/third-party-notices.html
+          test -s dist/stockfish/Copying.txt
+
   baseline-main:
     name: Verify main baseline end to end
     runs-on: ubuntu-latest
