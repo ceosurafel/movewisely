@@ -5,6 +5,7 @@ import { CheckupAnalysis, ActionPlanTask } from '../types/chess';
 import { ChessBoardView } from './ChessBoardView';
 import { ShareReportModal } from './ShareReportModal';
 import { GameHistoryList } from './GameHistoryList';
+import { GameAnalyzerPanel } from './GameAnalyzerPanel';
 
 interface ResultsViewProps {
   analysis: CheckupAnalysis;
@@ -91,6 +92,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [slideProgress, setSlideProgress] = useState(0);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showGameAnalyzer, setShowGameAnalyzer] = useState(false);
   const [showGamesList, setShowGamesList] = useState(false);
   const [tasks, setTasks] = useState<ActionPlanTask[]>(analysis.actionPlan.tasks);
   const [planStarted, setPlanStarted] = useState(false);
@@ -1158,6 +1160,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => setShowGameAnalyzer(true)}
+              aria-label="Open move-by-move analyzer"
+              title="Review moves, engine evaluations, and annotated PGN"
+              className="rounded-lg border border-teal-700/60 bg-teal-950/40 px-2.5 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold text-teal-100 hover:bg-teal-900/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+            >
+              <span className="hidden sm:inline">Move Analyzer</span>
+              <span className="sm:hidden">Moves</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setShowShareModal(true)}
               aria-label="Share report"
               className="rounded-lg border border-white/15 bg-white/5 px-2.5 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
@@ -1182,6 +1194,11 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         analysis={analysis}
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
+      />
+      <GameAnalyzerPanel
+        analysis={analysis}
+        isOpen={showGameAnalyzer}
+        onClose={() => setShowGameAnalyzer(false)}
       />
     </div>
   );
