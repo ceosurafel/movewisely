@@ -434,7 +434,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                 {/* Grid of Squares for Analyzed Games that flicker softly */}
                 <div className="py-6 flex flex-col items-center justify-center">
-                  <div className="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-10 gap-2.5 p-4 rounded-2xl bg-black/40 border border-teal-900/50 backdrop-blur-md" aria-label="Completed game results">
+                  <div role="group" aria-label="Completed game results" className="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-10 gap-2.5 p-4 rounded-2xl bg-black/40 border border-teal-900/50 backdrop-blur-md">
                     {gameSummaries.map((game, i) => {
                       const outcome = game.result === 'win' ? 'Win' : game.result === 'draw' ? 'Draw' : 'Loss';
                       const outcomeClass = game.result === 'win'
@@ -725,7 +725,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       Critical Engine Blunder
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 px-1 mb-2" aria-label="Game outcomes with the spotlight source highlighted">
+                  <div role="group" aria-label="Game outcomes with the spotlight source highlighted" className="flex items-center gap-1 px-1 mb-2">
                     {gameSummaries.map((game, gIdx) => {
                       const isCurrent = Boolean(sm.gameUrl) && game.url === sm.gameUrl;
                       const resultClass = game.result === 'win'
@@ -1032,6 +1032,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   <p className="text-[11px] text-slate-500">
                     Prioritized for {dailyPracticeBudget} of daily study{tasksForBudget.length < tasks.length ? '; continue with the remaining drills in later sessions.' : '.'}
                   </p>
+                  <p className="text-[11px] text-slate-500">
+                    Checklist progress is temporary and stays only while this report is open; it is not saved to an account or synced between visits.
+                  </p>
 
                   {tasksForBudget.map(task => (
                     <label
@@ -1075,13 +1078,13 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     onClick={handleStartPlan}
                     className="w-full py-4 px-6 rounded-xl font-black text-slate-950 bg-gradient-to-r from-teal-400 via-cyan-300 to-emerald-400 hover:from-teal-300 hover:to-cyan-200 text-base shadow-xl shadow-teal-500/30 transition-all hover:scale-102 active:scale-98 cursor-pointer flex items-center justify-center gap-2"
                   >
-                    <span>{planStarted ? '✓ Plan Activated!' : `Start my plan to ${analysis.targetMilestone}`}</span>
+                    <span>{planStarted ? '✓ Session started' : "Start today's session"}</span>
                     <span>🚀</span>
                   </button>
 
                   {planStarted && (
                     <p className="text-xs text-emerald-300 mt-2 font-medium">
-                      Training plan ready. Review your next batch of completed games to measure progress; rating improvement and timing are not guaranteed.
+                      Session marked as started for this visit. Review another batch of completed games to compare your findings; rating improvement and timing are not guaranteed.
                     </p>
                   )}
                 </div>
