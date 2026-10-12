@@ -213,6 +213,9 @@ try {
     'roadmap session checklist is present in the report DOM',
     5_000
   );
+  if (!(await evaluate(`document.body.innerText.includes('Checklist progress is temporary')`))) {
+    throw new Error('The roadmap does not explain that checklist progress is temporary.');
+  }
   const checklistScrolledIntoView = await evaluate(`(() => {
     const target = Array.from(document.querySelectorAll('*')).find(
       element => element.childElementCount === 0 && element.textContent.trim() === 'Session One Checklist'
