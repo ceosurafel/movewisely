@@ -30,7 +30,7 @@ import {
 } from '../src/services/accuracyEngine';
 import { playerDiagnosticsService } from '../src/services/playerDiagnosticsService';
 import { coachingService } from '../src/services/coachingService';
-import { fetchUserGames } from '../src/services/chessApi';
+import { fetchUserGames, resolveCurrentRating } from '../src/services/chessApi';
 import { SAMPLE_PROFILES } from '../src/services/sampleData';
 import { GameRecord } from '../src/types/chess';
 
@@ -394,6 +394,19 @@ async function runCompleteAudit() {
   // ---------------------------------------------------------------------------
   console.log('\nSECTION 7: Malformed PGNs, Network Failure & Zero Synthetic Substitution...');
   {
+    // A verified current profile rating must take precedence over older game-record ratings.
+    assert(
+      resolveCurrentRating(1620, [{ userRating: 1498 } as GameRecord]) === 1620,
+      'Current platform profile rating takes precedence over a historical game rating'
+    );
+    assert(
+      resolveCurrentRating(undefined, [{ userRating: 1498 } as GameRecord]) === 1498,
+      'Latest game rating is used only as a fallback when the profile rating is unavailable'
+    );
+    assert(
+      resolveCurrentRating(0, [{ userRating: Number.NaN } as GameRecord]) === null,
+      'Invalid profile and game ratings are rejected'
+    );
     // Test 7.1: Completely empty PGN
     const emptyTimeline = gameAnalysisService.reconstructTimeline('');
     assert(emptyTimeline.valid === false && emptyTimeline.moves.length === 0, 'Empty PGN safely rejected with valid = false');
