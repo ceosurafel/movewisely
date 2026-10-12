@@ -15,7 +15,17 @@ interface ResultsViewProps {
 }
 
 const TOTAL_SLIDES = 8;
-const SLIDE_DURATION = 6000; // 6 seconds per slide
+const SLIDE_DURATION = 6000;
+const STORY_SECTIONS = [
+  'Overview',
+  'Accuracy',
+  'Blunders',
+  'Opening Errors',
+  'Critical Move',
+  'Rating Journey',
+  'Your Leaks',
+  'Personalized Training Plan',
+] as const;
 
 // Friendly Chess Coach Avatar SVG (inspired by Chess.com coach Zach)
 const CoachAvatar: React.FC = () => (
@@ -78,8 +88,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   goalStyle = 'milestone',
 }) => {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const [slideProgress, setSlideProgress] = useState(0); // 0 to 100
-  const [isPaused, setIsPaused] = useState(false);
+  const [slideProgress, setSlideProgress] = useState(0);
+  const [isAutoPlay, setIsAutoPlay] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showGamesList, setShowGamesList] = useState(false);
   const [tasks, setTasks] = useState<ActionPlanTask[]>(analysis.actionPlan.tasks);
@@ -88,6 +98,31 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     const maxTasks = dailyPracticeBudget === '5–15 min' ? 1 : dailyPracticeBudget === '15–30 min' ? 2 : tasks.length;
     return tasks.slice(0, maxTasks);
   }, [tasks, dailyPracticeBudget]);
+
+  // Use only completed engine-reviewed games for outcome tiles and spotlight tracking.
+  // This keeps the summary aligned with the same records that contributed to its metrics.
+  const gameSummaries = useMemo(() => {
+    const records = (analysis.diagnostics as any)?.analyzedGameRecords;
+    if (Array.isArray(records)) {
+      return records
+        .filter((record: any) => record?.status === 'completed' && record?.game)
+        .map((record: any, index: number) => ({
+          id: String(record.game.id ?? `completed-game-${index + 1}`),
+          url: typeof record.game.url === 'string' ? record.game.url : '',
+          result: record.game.result === 'win' || record.game.result === 'draw' ? record.game.result : 'loss',
+        }));
+    }
+
+    return (analysis.games ?? [])
+      .slice(0, Math.max(0, analysis.totalGames))
+      .map(game => ({ id: game.id, url: game.url, result: game.result }));
+  }, [analysis.diagnostics, analysis.games, analysis.totalGames]);
+
+  const gameResultCounts = useMemo(() => ({
+    wins: gameSummaries.filter(game => game.result === 'win').length,
+    draws: gameSummaries.filter(game => game.result === 'draw').length,
+    losses: gameSummaries.filter(game => game.result === 'loss').length,
+  }), [gameSummaries]);
 
   // Compute an opening-error rate from completed engine-reviewed user moves only.
   // Missing move-level evidence stays unavailable instead of becoming a fabricated score.
@@ -123,29 +158,24 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const touchStartX = useRef<number | null>(null);
   const touchStartY = useRef<number | null>(null);
 
-  // Auto-advance Story Timer
+  // Story playback is opt-in. The interactive board and training plan never auto-advance.
   useEffect(() => {
-    // On Slide 4 (interactive board) or Slide 7 (the plan road page), freeze auto-advance
-    if (currentSlide === 4 || currentSlide === 7 || isPaused) return;
+    if (!isAutoPlay || currentSlide === 4 || currentSlide === 7) return;
 
-    const intervalTime = 50; // update progress every 50ms
-    const step = (100 / (SLIDE_DURATION / intervalTime));
-
-    const timer = setInterval(() => {
-      setSlideProgress(prev => {
-        if (prev >= 100) {
-          if (currentSlide < TOTAL_SLIDES - 1) {
-            setCurrentSlide(s => s + 1);
-            return 0;
-          }
-          return 100;
+    const intervalTime = 50;
+    const step = 100 / (SLIDE_DURATION / intervalTime);
+    const timer = window.setInterval(() => {
+      setSlideProgress(previous => {
+        if (previous >= 100) {
+          setCurrentSlide(current => Math.min(TOTAL_SLIDES - 1, current + 1));
+          return 0;
         }
-        return prev + step;
+        return Math.min(100, previous + step);
       });
     }, intervalTime);
 
-    return () => clearInterval(timer);
-  }, [currentSlide, isPaused]);
+    return () => window.clearInterval(timer);
+  }, [currentSlide, isAutoPlay]);
 
   // Reset progress on slide change
   useEffect(() => {
@@ -205,42 +235,45 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     }
   };
 
-  // Keyboard navigation (Left / Right Arrow)
+  // Keyboard navigation respects focused controls so arrows inside forms, links,
+  // the interactive board, and report buttons are never hijacked.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') goToNextSlide();
-      if (e.key === 'ArrowLeft') goToPrevSlide();
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const target = e.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest('button, a, input, textarea, select, [contenteditable="true"], [role="textbox"], [data-no-story-swipe]')
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      if (e.key === 'ArrowRight') setCurrentSlide(current => Math.min(TOTAL_SLIDES - 1, current + 1));
+      if (e.key === 'ArrowLeft') setCurrentSlide(current => Math.max(0, current - 1));
     };
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentSlide]);
+  }, []);
 
-  // Screen Tap Navigation:
-  // Tap right 70% = next, left 30% = prev
-  const handleScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    // If clicking on slide 7 (road to milestone), disable screen tap navigation so user can scroll & read
-    if (currentSlide === 7) return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const width = rect.width;
-
-    if (x > width * 0.3) {
-      goToNextSlide();
-    } else {
-      goToPrevSlide();
-    }
-  };
-
-  // Touch handlers for swipe
+  // Touch navigation uses deliberate horizontal swipes only. Tapping the content
+  // never changes slides, so interactive controls and selectable text remain usable.
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-    setIsPaused(true);
+    const target = e.target;
+    if (
+      target instanceof HTMLElement &&
+      target.closest('button, a, input, textarea, select, [role="button"], [data-no-story-swipe]')
+    ) {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      return;
+    }
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+    touchStartY.current = e.touches[0]?.clientY ?? null;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    setIsPaused(false);
     if (touchStartX.current === null || touchStartY.current === null) return;
     const diffX = e.changedTouches[0].clientX - touchStartX.current;
     const diffY = e.changedTouches[0].clientY - touchStartY.current;
@@ -318,35 +351,42 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black overflow-hidden select-none font-[var(--font-body)]">
       {/* 440px Centered Stories Container */}
       <div
-        className="relative w-full max-w-[440px] h-[100dvh] overflow-hidden flex flex-col justify-between shadow-2xl bg-black"
-        onClick={handleScreenClick}
+        className="relative w-full max-w-[440px] md:max-w-3xl h-[100dvh] md:h-[min(920px,100dvh)] overflow-hidden flex flex-col justify-between shadow-2xl bg-black md:rounded-2xl md:border md:border-teal-900/50"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
-        onMouseDown={() => setIsPaused(true)}
-        onMouseUp={() => setIsPaused(false)}
       >
-        {/* Top Story Progress Bar (Row of 8 segments) */}
-        <div className="absolute top-0 left-0 right-0 z-40 px-3 pt-3 pb-1 flex items-center gap-1.5 pointer-events-none">
-          {Array.from({ length: TOTAL_SLIDES }).map((_, idx) => {
+        {/* Accessible, directly selectable section progress/navigation */}
+        <nav aria-label="Checkup report sections" className="absolute top-0 left-0 right-0 z-40 px-3 pt-3 pb-1 flex items-center gap-1.5">
+          {STORY_SECTIONS.map((section, idx) => {
             const isPast = idx < currentSlide;
             const isCurrent = idx === currentSlide;
 
             return (
-              <div
-                key={idx}
-                className="h-1 flex-1 rounded-full bg-white/20 overflow-hidden"
+              <button
+                key={section}
+                type="button"
+                aria-label={`Go to ${section} section`}
+                aria-current={isCurrent ? 'step' : undefined}
+                title={section}
+                onClick={() => {
+                  setCurrentSlide(idx);
+                  setSlideProgress(0);
+                }}
+                className="h-3 flex-1 rounded-full p-0.5 bg-transparent overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
               >
-                {isPast && <div className="h-full w-full bg-white rounded-full" />}
-                {isCurrent && (
-                  <div
-                    className="h-full bg-white rounded-full transition-all duration-75 ease-linear"
-                    style={{ width: `${slideProgress}%` }}
-                  />
-                )}
-              </div>
+                <span className="block h-1 rounded-full bg-white/20 overflow-hidden">
+                  {isPast && <span className="block h-full w-full bg-white rounded-full" />}
+                  {isCurrent && (
+                    <span
+                      className={`block h-full rounded-full ${isAutoPlay ? 'bg-white transition-[width] duration-75 ease-linear' : 'w-full bg-teal-400'}`}
+                      style={isAutoPlay ? { width: `${slideProgress}%` } : undefined}
+                    />
+                  )}
+                </span>
+              </button>
             );
           })}
-        </div>
+        </nav>
 
         {/* Notice badge if fallback benchmark data was used */}
         {notice && (
@@ -369,7 +409,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         )}
 
         {/* Dynamic Animated Slides Area */}
-        <div className="flex-1 w-full h-full relative overflow-hidden flex flex-col">
+        <div data-report-content="true" className="flex-1 w-full h-full relative overflow-hidden flex flex-col">
           <AnimatePresence mode="wait">
             {/* ========================================================
                 SLIDE 1: INTRO (Flickering 5x4 Grid + Username)
@@ -394,48 +434,52 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
                 {/* Grid of Squares for Analyzed Games that flicker softly */}
                 <div className="py-6 flex flex-col items-center justify-center">
-                  <div className={`grid gap-2.5 p-4 rounded-2xl bg-black/40 border border-teal-900/50 backdrop-blur-md ${analysis.totalGames <= 10 ? 'grid-cols-5' : 'grid-cols-5'}`}>
-                    {Array.from({ length: Math.max(1, analysis.totalGames) }).map((_, i) => (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0.3 }}
-                        animate={{
-                          opacity: [0.35, 1, 0.55],
-                          scale: [0.95, 1.05, 1],
-                        }}
-                        transition={{
-                          duration: 2.2,
-                          repeat: Infinity,
-                          delay: (i % 5) * 0.12 + Math.floor(i / 5) * 0.15,
-                        }}
-                        role="img"
-                        aria-label={`Analyzed game ${i + 1}: ${i < analysis.wins ? 'win' : i < analysis.wins + analysis.draws ? 'draw' : 'loss'}`}
-                        title={`Game ${i + 1}: ${i < analysis.wins ? 'Win' : i < analysis.wins + analysis.draws ? 'Draw' : 'Loss'}`}
-                        className={`w-9 h-9 rounded-lg border transition-colors ${
-                          i < analysis.wins
-                            ? 'bg-[#20b7a8]/60 border-[#2bdac9]/35'
-                            : i < analysis.wins + analysis.draws
-                            ? 'bg-[#326b67]/40 border-[#326b67]/30'
-                            : 'bg-[#2b3738]/75 border-[#3d4a4a]/50'
-                        }`}
-                      />
-                    ))}
+                  <div className="grid grid-cols-5 sm:grid-cols-5 md:grid-cols-10 gap-2.5 p-4 rounded-2xl bg-black/40 border border-teal-900/50 backdrop-blur-md" aria-label="Completed game results">
+                    {gameSummaries.map((game, i) => {
+                      const outcome = game.result === 'win' ? 'Win' : game.result === 'draw' ? 'Draw' : 'Loss';
+                      const outcomeClass = game.result === 'win'
+                        ? 'bg-[#20b7a8]/60 border-[#2bdac9]/35'
+                        : game.result === 'draw'
+                          ? 'bg-[#326b67]/40 border-[#326b67]/30'
+                          : 'bg-[#2b3738]/75 border-[#3d4a4a]/50';
+
+                      return (
+                        <motion.div
+                          key={`${game.id}-${i}`}
+                          initial={{ opacity: 0.5 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ duration: 0.25, delay: Math.min(i * 0.015, 0.3) }}
+                          role="img"
+                          data-game-result={game.result}
+                          aria-label={`Game ${i + 1}: ${outcome}`}
+                          title={`Game ${i + 1}: ${outcome}`}
+                          className={`w-9 h-9 rounded-lg border ${outcomeClass}`}
+                        />
+                      );
+                    })}
+                    {gameSummaries.length === 0 && (
+                      <p className="col-span-5 text-xs text-slate-400">No successfully analyzed games are available for this summary.</p>
+                    )}
                   </div>
                   <span className="text-[11px] text-teal-300/80 font-mono mt-3">
-                    {analysis.wins}W · {analysis.losses}L · {analysis.draws}D
+                    {gameResultCounts.wins}W · {gameResultCounts.losses}L · {gameResultCounts.draws}D
                   </span>
                 </div>
 
                 <div className="space-y-1">
                   <p className="text-xl sm:text-2xl font-bold text-white">
-                    Your {analysis.totalGames} {analysis.timeControl} games analyzed
+                    {gameSummaries.length} {analysis.timeControl} games successfully analyzed
                   </p>
                   <p className="text-xs text-slate-400">
                     Compared with MoveWisely's internal reference for the <strong className="text-teal-300">{analysis.targetMilestone}</strong> milestone
                   </p>
+                  {analysis.status !== 'completed' && (
+                    <p role="status" className="text-xs text-amber-300 mt-2">
+                      {analysis.completedGamesCount} completed · {analysis.partialGamesCount} partial · {analysis.failedGamesCount} failed of {analysis.attemptedGamesCount} attempted. Only completed games contribute to the main summary metrics.
+                    </p>
+                  )}
                   <div className="pt-4 flex items-center gap-1.5 text-xs text-teal-400 font-medium">
-                    <span>Tap right to reveal your accuracy</span>
-                    <span className="animate-pulse">→</span>
+                    <span>Use Next to review each section, or choose a section above.</span>
                   </div>
                 </div>
               </motion.div>
@@ -681,19 +725,21 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       Critical Engine Blunder
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 px-1 mb-2">
-                    {Array.from({ length: Math.max(1, analysis.totalGames) }).map((_, gIdx) => {
-                      const isCurrent = gIdx === 0; // spotlight game index
+                  <div className="flex items-center gap-1 px-1 mb-2" aria-label="Game outcomes with the spotlight source highlighted">
+                    {gameSummaries.map((game, gIdx) => {
+                      const isCurrent = Boolean(sm.gameUrl) && game.url === sm.gameUrl;
+                      const resultClass = game.result === 'win'
+                        ? 'bg-emerald-600/70'
+                        : game.result === 'draw'
+                          ? 'bg-zinc-500/70'
+                          : 'bg-rose-900/70';
                       return (
                         <div
-                          key={gIdx}
-                          className={`h-1.5 flex-1 rounded-sm ${
-                            isCurrent
-                              ? 'bg-rose-500 ring-1 ring-rose-400'
-                              : gIdx < analysis.wins
-                              ? 'bg-emerald-600/70'
-                              : 'bg-zinc-700'
-                          }`}
+                          key={`${game.id}-spotlight-${gIdx}`}
+                          role="img"
+                          aria-label={`Game ${gIdx + 1}: ${game.result}${isCurrent ? ', spotlight source' : ''}`}
+                          title={`Game ${gIdx + 1}: ${game.result}${isCurrent ? ' — spotlight source' : ''}`}
+                          className={`h-1.5 flex-1 rounded-sm ${isCurrent ? 'bg-rose-500 ring-1 ring-rose-300' : resultClass}`}
                         />
                       );
                     })}
@@ -720,7 +766,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 </div>
 
                 {/* EXACT CHESS.COM MOBILE BOARD */}
-                <div className="w-full my-auto">
+                <div data-no-story-swipe="true" className="w-full my-auto">
                   <ChessBoardView
                     initialFen={sm.fenBefore}
                     fenAfterUserMove={sm.fenAfterUserMove}
@@ -988,20 +1034,22 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   </p>
 
                   {tasksForBudget.map(task => (
-                    <div
+                    <label
                       key={task.id}
-                      onClick={() => toggleTask(task.id)}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-start gap-3 ${
+                      htmlFor={`roadmap-task-${task.id}`}
+                      className={`p-3.5 rounded-xl border transition-colors cursor-pointer flex items-start gap-3 ${
                         task.completed
                           ? 'bg-emerald-950/20 border-emerald-800/40 text-slate-400'
                           : 'bg-[#0a1419] border-teal-900/60 text-white'
                       }`}
                     >
                       <input
+                        id={`roadmap-task-${task.id}`}
                         type="checkbox"
                         checked={task.completed}
-                        onChange={() => {}}
-                        className="mt-1 h-4 w-4 rounded border-slate-700 text-teal-500 focus:ring-teal-400 cursor-pointer"
+                        onChange={() => toggleTask(task.id)}
+                        aria-label={`Mark ${task.title} complete`}
+                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-700 text-teal-500 focus:ring-teal-400 cursor-pointer"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
@@ -1016,7 +1064,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                           {task.description}
                         </p>
                       </div>
-                    </div>
+                    </label>
                   ))}
                 </div>
 
@@ -1076,33 +1124,54 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
           </AnimatePresence>
         </div>
 
-        {/* Story Bottom Bar (on Slides 0 to 6) */}
-        {currentSlide < 7 && (
-          <div
-            className="absolute bottom-0 left-0 right-0 z-30 h-14 px-4 bg-gradient-to-t from-black via-black/80 to-transparent flex items-center justify-between pointer-events-auto"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Small logo + movewisely */}
-            <div className="flex items-center gap-1.5 text-zinc-400">
-              <span className="w-5 h-5 rounded-md bg-teal-500/20 text-teal-400 font-black text-xs flex items-center justify-center">
-                ♞
-              </span>
-              <span className="text-xs font-bold tracking-tight text-zinc-300 font-[var(--font-heading)]">
-                movewisely
-              </span>
+        {/* Persistent report controls: nothing advances unless the user asks or opts into autoplay. */}
+        <div className="absolute bottom-0 left-0 right-0 z-30 min-h-14 px-2 sm:px-4 py-2 bg-gradient-to-t from-black via-black/95 to-black/75 border-t border-white/10">
+          <nav aria-label="Report navigation" className="mx-auto flex w-full max-w-2xl items-center justify-between gap-1.5 sm:gap-3">
+            <button
+              type="button"
+              onClick={goToPrevSlide}
+              disabled={currentSlide === 0}
+              aria-label="Previous report section"
+              className="rounded-lg border border-white/15 bg-white/5 px-2.5 sm:px-4 py-2 text-[11px] sm:text-xs font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+            >
+              ← <span className="hidden xs:inline">Prev</span><span className="xs:hidden">Back</span>
+            </button>
+            <div className="hidden sm:block min-w-0 flex-1 text-center" aria-live="polite" aria-atomic="true">
+              <span className="block truncate text-[10px] uppercase tracking-wider text-slate-400">{STORY_SECTIONS[currentSlide]}</span>
+              <span className="text-xs font-mono text-slate-300">Section {currentSlide + 1} of {TOTAL_SLIDES}</span>
             </div>
-
-            {/* Pill Share Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsAutoPlay(value => !value);
+                setSlideProgress(0);
+              }}
+              aria-label={isAutoPlay ? 'Disable report autoplay' : 'Enable report autoplay'}
+              aria-pressed={isAutoPlay}
+              title={isAutoPlay ? 'Turn off automatic playback' : 'Turn on automatic playback'}
+              className="rounded-lg border border-white/15 bg-white/5 px-2.5 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold text-slate-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+            >
+              {isAutoPlay ? 'Ⅱ Auto on' : '▶ Auto off'}
+            </button>
             <button
               type="button"
               onClick={() => setShowShareModal(true)}
-              className="py-1.5 px-3.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold backdrop-blur-md border border-white/20 transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95"
+              aria-label="Share report"
+              className="rounded-lg border border-white/15 bg-white/5 px-2.5 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
             >
-              <span>🔗</span>
-              <span>Share</span>
+              Share
             </button>
-          </div>
-        )}
+            <button
+              type="button"
+              onClick={goToNextSlide}
+              disabled={currentSlide === TOTAL_SLIDES - 1}
+              aria-label="Next report section"
+              className="rounded-lg bg-teal-400 px-2.5 sm:px-4 py-2 text-[11px] sm:text-xs font-bold text-slate-950 hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              <span className="hidden xs:inline">Next</span><span className="xs:hidden">Next</span> →
+            </button>
+          </nav>
+        </div>
       </div>
 
       {/* Share Report Modal */}
