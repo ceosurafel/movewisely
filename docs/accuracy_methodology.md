@@ -64,6 +64,14 @@ The table applies as a maximum severity tier for each signal; the final grade is
 
 Contextual labels are heuristic annotations, not standardized ratings or proof that no other good move exists.
 
+## Interactive analyzer interpretation
+
+The game analyzer displays the engine grade, best-move candidate, principal variation, before/after evaluation, and move-level accuracy for moves that were actually searched. In a checkup report, deep move-by-move analysis is performed for the selected player's moves; opponent moves remain visible in the timeline but are not assigned fabricated grades. A user-imported PGN can be analyzed from either White's or Black's perspective.
+
+The evaluation chart is intentionally labelled **evaluation before the analyzed player's moves**. It is not a full-ply graph: opponent replies between those positions are not separately searched by the batch checkup. Values are normalized to the analyzed player's perspective and displayed as centipawn-equivalent values. The logistic score proxy is separate from centipawn evaluation and remains experimental, uncalibrated, and not equivalent to a platform accuracy score.
+
+Annotated PGN export attaches a MoveWisely comment only to moves that have recorded engine evidence. Export comments include the move grade, before/after evaluation, top engine candidate, experimental move-accuracy value, and search depth. Opponent moves and unsearched positions are not assigned grades.
+
 ## Aggregation
 
 Only successfully completed games are eligible for cross-game diagnostics. The service stores an overall arithmetic mean and a separate non-book move mean. Interpret both as MoveWisely internal metrics. Empty input returns zero counts and zero placeholders, which must be interpreted together with the analysis status; it does not mean that a player scored 0%.

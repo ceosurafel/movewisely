@@ -13,6 +13,8 @@ interface ChessBoardViewProps {
   interactive?: boolean;
   onSolveSuccess?: () => void;
   refutationSteps?: Array<{ from: string; to: string; san: string }>;
+  /** Called whenever a legal move changes the displayed board position. */
+  onPositionChange?: (fen: string) => void;
 }
 
 // Chess.com piece image helper
@@ -59,6 +61,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = ({
   interactive = true,
   onSolveSuccess,
   refutationSteps,
+  onPositionChange,
 }) => {
   const [orientation, setOrientation] = useState<'white' | 'black'>(initialOrientation);
   const [chessInstance] = useState(() => {
@@ -149,7 +152,9 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = ({
         });
 
         if (move) {
-          setCurrentFen(chessInstance.fen());
+          const nextFen = chessInstance.fen();
+          setCurrentFen(nextFen);
+          onPositionChange?.(nextFen);
           if (
             bestMoveFrom &&
             bestMoveTo &&
@@ -184,6 +189,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = ({
       const targetFen = fenAfterUserMove || initialFen;
       chessInstance.load(targetFen);
       setCurrentFen(targetFen);
+      onPositionChange?.(targetFen);
       setShowingRefutation(true);
       setShowBestArrow(false);
       setSelectedSquare(null);
@@ -198,6 +204,7 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = ({
   const resetBoard = () => {
     chessInstance.load(initialFen);
     setCurrentFen(initialFen);
+    onPositionChange?.(initialFen);
     setSolved(false);
     setSelectedSquare(null);
     setStatusMessage(null);

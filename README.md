@@ -10,6 +10,8 @@ It is intended to help players review PGN games, inspect move-by-move engine rec
 
 - PGN-based game reconstruction with move-by-move FEN tracking.
 - Stockfish-powered position evaluation and best-move analysis.
+- Interactive move-by-move analyzer with engine lines, a player-perspective evaluation chart, and transparent grade methodology.
+- PGN file/text import for analyzing either side, plus annotated PGN export for reviewed positions.
 - Move classification and multi-game diagnostics.
 - Coaching explanations and training recommendations.
 - Regression tests for engine behavior, game reconstruction, scoring, diagnostics, coaching, and release-critical cases.

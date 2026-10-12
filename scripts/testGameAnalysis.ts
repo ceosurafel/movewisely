@@ -58,6 +58,7 @@ if (typeof Worker === 'undefined') {
 // Import services AFTER worker polyfill
 const { gameAnalysisService } = await import('../src/services/gameAnalysisService');
 const { chessEngineService } = await import('../src/services/chessEngineService');
+const { buildAnnotatedPgn } = await import('../src/services/annotatedPgn');
 
 async function runPhase2Tests() {
   console.log('\n================================================================');
@@ -240,15 +241,17 @@ async function runPhase2Tests() {
     // Stockfish 19 finds Qxf7# as the best move in fenBefore
     const foundMate = analyzed.bestMoveUci === 'f3f7';
     const isBlunder = analyzed.evalLossCp >= 200 || analyzed.judgment === 'blunder';
+    const principalVariationMatchesBestMove =
+      analyzed.pvs.length > 0 && analyzed.pvs[0].pvMoves[0] === analyzed.bestMoveUci;
 
     // Verify resulting board state from engine alternative move (Q on f7 delivering checkmate: pppp1Qpp)
     const isFenAfterBestValid = analyzed.fenAfterBestMove.includes('pppp1Qpp');
 
-    if (foundMate && isBlunder && isFenAfterBestValid) {
-      console.log(`PASSED (Best move: ${analyzed.bestMoveSan} [${analyzed.bestMoveUci}], Eval loss: ${analyzed.evalLossCp} cp)`);
+    if (foundMate && isBlunder && isFenAfterBestValid && principalVariationMatchesBestMove) {
+      console.log(`PASSED (Best move: ${analyzed.bestMoveSan} [${analyzed.bestMoveUci}], Eval loss: ${analyzed.evalLossCp} cp; PV root verified)`);
       passed++;
     } else {
-      throw new Error(`Expected best move f3f7 and blunder judgment, got best=${analyzed.bestMoveUci}, loss=${analyzed.evalLossCp}`);
+      throw new Error(`Expected best move/PV f3f7 and blunder judgment, got best=${analyzed.bestMoveUci}, PV root=${analyzed.pvs[0]?.pvMoves[0]}, loss=${analyzed.evalLossCp}`);
     }
   } catch (err) {
     console.log('FAILED');
@@ -310,6 +313,17 @@ async function runPhase2Tests() {
     const analyzedGame = await gameAnalysisService.analyzeGame(mockGame, { depth: 6 });
     const spotlight = gameAnalysisService.extractSpotlightMove([analyzedGame]);
 
+    const annotatedPgn = buildAnnotatedPgn(analyzedGame);
+    const exportedTimeline = gameAnalysisService.reconstructTimeline(annotatedPgn);
+    if (
+      !annotatedPgn.includes('[Annotator "MoveWisely"]') ||
+      !annotatedPgn.includes('MoveWisely grade:') ||
+      !exportedTimeline.valid ||
+      exportedTimeline.moves.length !== analyzedGame.timeline.moves.length
+    ) {
+      throw new Error('Annotated PGN export is missing annotations or did not preserve the legal move timeline.');
+    }
+
     if (!spotlight) {
       throw new Error('Failed to extract spotlight move');
     }
@@ -319,7 +333,7 @@ async function runPhase2Tests() {
     const hasEvalDiff = spotlight.evalDiff.includes('→');
 
     if (hasRealFen && hasRealBestMove && hasEvalDiff) {
-      console.log(`PASSED (Spotlight: ${spotlight.userMoveSan} vs engine ${spotlight.bestMoveSan}, Eval: ${spotlight.evalDiff})`);
+      console.log(`PASSED (Spotlight: ${spotlight.userMoveSan} vs engine ${spotlight.bestMoveSan}, Eval: ${spotlight.evalDiff}; annotated PGN round-trip preserved ${exportedTimeline.moves.length} plies)`);
       passed++;
     } else {
       throw new Error('Spotlight move missing required engine fields');
