@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CheckupAnalysis } from '../types/chess';
 
 interface ShareReportModalProps {
@@ -14,45 +14,79 @@ export const ShareReportModal: React.FC<ShareReportModalProps> = ({
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
+  const [clipboardError, setClipboardError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
+  const appUrl = window.location.origin;
   const shareText = `♟️ MoveWisely Checkup: ${analysis.username} (${analysis.currentRating} ${analysis.timeControl.toUpperCase()})
 MoveWisely experimental accuracy score: ${analysis.accuracy}% (internal reference: ${analysis.targetRatingAccuracy}%)
 Blunders/game: ${analysis.blundersPerGame} (Target: ${analysis.targetBlundersPerGame})
-Top Leak: ${analysis.leaks[0]?.title}
+Top Leak: ${analysis.leaks[0]?.title ?? 'No recurring leak identified in this report'}
 Selected rating goal: ${analysis.targetMilestone} (+${analysis.targetDistance} points; not a rating forecast).
-Check your leaks at MoveWisely`;
+Open MoveWisely: ${appUrl}
+Note: this app link opens a new checkup; it does not recreate this exact report.`;
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
+  const handleCopyLink = async () => {
+    setClipboardError(null);
+    try {
+      await navigator.clipboard.writeText(appUrl);
+      setCopiedLink(true);
+      window.setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      setCopiedLink(false);
+      setClipboardError('Clipboard access was blocked. Copy the site address from your browser address bar instead.');
+    }
   };
 
-  const handleCopySummary = () => {
-    navigator.clipboard.writeText(shareText);
-    setCopiedText(true);
-    setTimeout(() => setCopiedText(false), 2500);
+  const handleCopySummary = async () => {
+    setClipboardError(null);
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setCopiedText(true);
+      window.setTimeout(() => setCopiedText(false), 2500);
+    } catch {
+      setCopiedText(false);
+      setClipboardError('Clipboard access was blocked. Select and copy the summary text manually.');
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-[#0a1519] border border-teal-800/60 rounded-2xl p-6 sm:p-8 shadow-2xl text-left">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-report-title"
+        tabIndex={-1}
+        className="relative w-full max-w-lg bg-[#0a1519] border border-teal-800/60 rounded-2xl p-6 sm:p-8 shadow-2xl text-left"
+      >
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-teal-950 cursor-pointer"
-          aria-label="Close modal"
+          className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-teal-950 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
+          aria-label="Close share dialog"
         >
           ✕
         </button>
 
-        <h3 className="text-xl font-bold text-white mb-1">
+        <h3 id="share-report-title" className="text-xl font-bold text-white mb-1">
           Share Your Chess Checkup
         </h3>
-        <p className="text-xs text-slate-400 mb-6">
-          Compare with friends or share on Discord, Reddit, and Twitter.
+        <p className="text-xs text-slate-400 mb-3">
+          Copy a text summary of this analysis or copy the MoveWisely app link.
+        </p>
+        <p className="text-xs text-amber-200/90 mb-6">
+          The app link does not reconstruct this exact report. Share the summary text to communicate these results.
         </p>
 
         {/* Share Preview Card */}
@@ -60,21 +94,27 @@ Check your leaks at MoveWisely`;
           {shareText}
         </div>
 
+        {clipboardError && (
+          <p role="alert" className="mb-3 rounded-lg border border-rose-900/70 bg-rose-950/30 p-3 text-xs text-rose-200">
+            {clipboardError}
+          </p>
+        )}
+
         {/* Action Buttons */}
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             onClick={handleCopySummary}
-            className="py-2.5 px-4 rounded-xl text-xs font-semibold bg-teal-900/40 text-teal-200 border border-teal-700/60 hover:bg-teal-800/50 transition-all flex items-center justify-center gap-2 cursor-pointer"
+            className="py-2.5 px-4 rounded-xl text-xs font-semibold bg-teal-900/40 text-teal-200 border border-teal-700/60 hover:bg-teal-800/50 transition-all flex items-center justify-center gap-2 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
           >
             {copiedText ? '✓ Copied Summary!' : 'Copy Summary Text'}
           </button>
           <button
             type="button"
             onClick={handleCopyLink}
-            className="py-2.5 px-4 rounded-xl text-xs font-semibold bg-teal-400 text-slate-950 hover:bg-teal-300 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-teal-500/20"
+            className="py-2.5 px-4 rounded-xl text-xs font-semibold bg-teal-400 text-slate-950 hover:bg-teal-300 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-teal-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           >
-            {copiedLink ? '✓ Copied Link!' : 'Copy Report URL'}
+            {copiedLink ? '✓ Copied App Link!' : 'Copy App Link'}
           </button>
         </div>
       </div>
