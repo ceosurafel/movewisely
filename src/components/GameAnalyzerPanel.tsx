@@ -424,8 +424,9 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
 
   const cancelImportedAnalysis = () => {
     abortRef.current?.abort();
-    setIsAnalyzingImport(false);
-    setAnalysisProgress({ percent: 0, text: 'Analysis cancelled' });
+    // Keep the UI locked until the engine confirms cancellation and the running
+    // promise settles; otherwise a second search could race the active worker.
+    setAnalysisProgress(previous => ({ ...previous, text: 'Cancellation requested; stopping the engine safely…' }));
   };
 
   const downloadAnnotatedPgn = () => {
@@ -601,11 +602,11 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
                       <ChessBoardView
                         key={`${selectedRecord.game.id}-${selectedPly}-${boardOverrideFen ?? ''}`}
                         initialFen={boardOverrideFen ?? selectedTimelineMove.fenBefore}
-                        fenAfterUserMove={selectedTimelineMove.fenAfter}
+                        fenAfterUserMove={boardOverrideFen || !selectedAnalysisMove ? undefined : selectedTimelineMove.fenAfter}
                         bestMoveFrom={boardOverrideFen ? undefined : selectedAnalysisMove?.bestMoveFrom}
                         bestMoveTo={boardOverrideFen ? undefined : selectedAnalysisMove?.bestMoveTo}
-                        userMoveFrom={boardOverrideFen ? undefined : selectedTimelineMove.from}
-                        userMoveTo={boardOverrideFen ? undefined : selectedTimelineMove.to}
+                        userMoveFrom={boardOverrideFen || !selectedAnalysisMove ? undefined : selectedTimelineMove.from}
+                        userMoveTo={boardOverrideFen || !selectedAnalysisMove ? undefined : selectedTimelineMove.to}
                         orientation={selectedRecord.game.userColor}
                         interactive={true}
                         onPositionChange={handleBoardPositionChange}
@@ -673,7 +674,7 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
                           )}
                         </div>
                       )}
-                      <p className="mt-3 text-[10px] leading-relaxed text-slate-500">This fresh position search uses the selected import depth plus two plies, up to depth 12, and three principal variations. Scores are search-dependent and are not calibrated win odds.</p>
+                      <p className="mt-3 text-[10px] leading-relaxed text-slate-500">This fresh position search runs at depth {Math.min(12, searchDepth + 2)} and requests up to three principal variations. Scores are search-dependent and are not calibrated win odds.</p>
                     </section>
 
                     {selectedAnalysisMove && (
@@ -768,6 +769,9 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
                                     <button key={`${pv.multipv}-${sanIndex}-${san}`} type="button" title={`Show position after ${sanIndex + 1} move(s) of this engine line`} onClick={() => {
                                       const fen = fenAfterVariation(selectedTimelineMove.fenBefore, pv.pvMoves, sanIndex + 1);
                                       if (fen) {
+                                        positionAbortRef.current?.abort();
+                                        setPositionAnalysis(null);
+                                        setPositionAnalysisError(null);
                                         setBoardOverrideFen(fen);
                                         setActiveVariation(pv.multipv);
                                       }
