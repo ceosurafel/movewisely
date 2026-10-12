@@ -126,10 +126,61 @@ try {
   await waitFor(`document.body.innerText.includes('MOVEWISELY CHECKUP')`, 'result intro card', 5_000);
   console.log('PASS: full demo analysis completed and result intro card rendered.');
 
+  const initialReportState = await evaluate(`(() => ({
+    activeSection: document.querySelector('nav[aria-label="Checkup report sections"] [aria-current="step"]')?.getAttribute('aria-label') || null,
+    autoplayButton: document.querySelector('button[aria-label="Enable report autoplay"]') !== null,
+    gameTiles: Array.from(document.querySelectorAll('[data-game-result]')).map(tile => ({
+      result: tile.getAttribute('data-game-result'),
+      label: tile.getAttribute('aria-label')
+    })),
+    resultSummary: document.body.innerText.match(/(\\d+)W · (\\d+)L · (\\d+)D/)
+  }))()`);
+  if (initialReportState?.activeSection !== 'Go to Overview section') {
+    throw new Error('The report does not start at the accessible Overview section.');
+  }
+  if (!initialReportState.autoplayButton) {
+    throw new Error('Autoplay is not clearly exposed as an opt-in control.');
+  }
+  if (!Array.isArray(initialReportState.gameTiles) || initialReportState.gameTiles.length === 0) {
+    throw new Error('The intro card does not expose per-game result tiles.');
+  }
+  const tileCounts = initialReportState.gameTiles.reduce((counts, tile) => {
+    if (tile.result === 'win') counts.wins += 1;
+    else if (tile.result === 'draw') counts.draws += 1;
+    else if (tile.result === 'loss') counts.losses += 1;
+    else throw new Error(`Unknown game result tile: ${tile.result}`);
+    if (!tile.label?.toLowerCase().includes(tile.result)) throw new Error('Accessible tile label does not match its underlying game result.');
+    return counts;
+  }, { wins: 0, losses: 0, draws: 0 });
+  if (!initialReportState.resultSummary ||
+      Number(initialReportState.resultSummary[1]) !== tileCounts.wins ||
+      Number(initialReportState.resultSummary[2]) !== tileCounts.losses ||
+      Number(initialReportState.resultSummary[3]) !== tileCounts.draws) {
+    throw new Error('The game tiles do not agree with the displayed W-L-D summary.');
+  }
+  console.log('PASS: game result tiles are tied to individual completed records and agree with W-L-D totals.');
+
+  await clickAndWait(
+    `(() => { const b = document.querySelector('button[aria-label="Go to Personalized Training Plan section"]'); if (!b) return false; b.click(); return true; })()`,
+    'jump directly to the training plan'
+  );
+  await waitFor(`document.body.innerText.includes('PERSONALIZED ROADMAP')`, 'direct section navigation to the training plan', 5_000);
+  await clickAndWait(
+    `(() => { const b = document.querySelector('button[aria-label="Go to Overview section"]'); if (!b) return false; b.click(); return true; })()`,
+    'jump back to the report overview'
+  );
+  await waitFor(`document.body.innerText.includes('MOVEWISELY CHECKUP')`, 'return to report overview', 5_000);
+
+  await evaluate(`(() => { document.querySelector('[data-report-content="true"] h1')?.click(); return true; })()`);
+  await new Promise(resolve => setTimeout(resolve, 6_400));
+  const remainsManual = await evaluate(`document.querySelector('nav[aria-label="Checkup report sections"] [aria-current="step"]')?.getAttribute('aria-label') === 'Go to Overview section' && document.querySelector('button[aria-label="Enable report autoplay"]')?.getAttribute('aria-pressed') === 'false'`);
+  if (!remainsManual) throw new Error('The report advances without user input while autoplay is off.');
+  console.log('PASS: report remains on the overview when the user clicks the content and waits longer than one slide interval.');
+
   async function clickNextStory(description) {
     await clickAndWait(
-      `(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', bubbles: true })); return true; })()`,
-      `navigate to ${description}`
+      `(() => { const b = document.querySelector('button[aria-label="Next report section"]'); if (!b || b.disabled) return false; b.click(); return true; })()`,
+      `navigate to ${description} using the visible Next control`
     );
   }
 
@@ -162,6 +213,9 @@ try {
     'roadmap session checklist is present in the report DOM',
     5_000
   );
+  if (!(await evaluate(`document.body.innerText.includes('Checklist progress is temporary')`))) {
+    throw new Error('The roadmap does not explain that checklist progress is temporary.');
+  }
   const checklistScrolledIntoView = await evaluate(`(() => {
     const target = Array.from(document.querySelectorAll('*')).find(
       element => element.childElementCount === 0 && element.textContent.trim() === 'Session One Checklist'
@@ -180,7 +234,34 @@ try {
     return rect.top >= 0 && rect.bottom <= window.innerHeight;
   })()`, 'roadmap checklist can be scrolled into view', 5_000);
   console.log('PASS: roadmap includes session checklist and the selected daily training budget.');
-  console.log('PASS: complete checkup setup → actual engine analysis → results-story smoke test passed.');
+
+  const firstTaskBefore = await evaluate(`(() => { const input = document.querySelector('input[id^="roadmap-task-"]'); return input ? input.checked : null; })()`);
+  if (firstTaskBefore === null) throw new Error('No accessible roadmap task checkbox was found.');
+  await evaluate(`(() => { const input = document.querySelector('input[id^="roadmap-task-"]'); if (!input) return false; input.click(); return true; })()`);
+  await waitFor(
+    `(() => { const input = document.querySelector('input[id^="roadmap-task-"]'); return input && input.checked !== ${JSON.stringify(firstTaskBefore)}; })()`,
+    'roadmap checkbox responds to a real checkbox interaction',
+    5_000
+  );
+  console.log('PASS: roadmap checklist uses accessible, interactive checkbox controls.');
+
+  await clickAndWait(
+    `(() => { const b = document.querySelector('button[aria-label="Share report"]'); if (!b) return false; b.click(); return true; })()`,
+    'open report sharing dialog'
+  );
+  await waitFor(
+    `document.querySelector('[role="dialog"][aria-modal="true"]') && document.body.innerText.includes('does not reconstruct this exact report')`,
+    'share dialog clearly explains the app link limitation',
+    5_000
+  );
+  if (!(await evaluate(`Array.from(document.querySelectorAll('[role="dialog"] button')).some(b => b.textContent.includes('Copy App Link'))`))) {
+    throw new Error('Share dialog does not describe the copied destination as an app link.');
+  }
+  await evaluate(`(() => { window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); return true; })()`);
+  await waitFor(`!document.querySelector('[role="dialog"][aria-modal="true"]')`, 'share dialog closes with Escape', 5_000);
+  console.log('PASS: share dialog has clear app-link wording, accessible dialog semantics, and Escape dismissal.');
+
+  console.log('PASS: complete checkup setup → actual engine analysis → corrected report interaction smoke test passed.');
 } finally {
   socket.close();
 }
