@@ -4,6 +4,7 @@ import { CheckupAnalysis, GameRecord, TimeControl } from '../types/chess';
 import { ChessBoardView } from './ChessBoardView';
 import { gameAnalysisService, AnalyzedGameRecord } from '../services/gameAnalysisService';
 import { buildAnnotatedPgn } from '../services/annotatedPgn';
+import { EngineAnalysisResult } from '../types/engine';
 
 interface GameAnalyzerPanelProps {
   analysis: CheckupAnalysis;
@@ -134,7 +135,11 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
   const [panelError, setPanelError] = useState<string | null>(null);
   const [showGradingMethod, setShowGradingMethod] = useState(false);
   const [activeVariation, setActiveVariation] = useState<number | null>(null);
+  const [positionAnalysis, setPositionAnalysis] = useState<EngineAnalysisResult | null>(null);
+  const [isAnalyzingPosition, setIsAnalyzingPosition] = useState(false);
+  const [positionAnalysisError, setPositionAnalysisError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const positionAbortRef = useRef<AbortController | null>(null);
   const importTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -152,6 +157,7 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !isAnalyzingImport) {
         event.preventDefault();
+        positionAbortRef.current?.abort();
         onClose();
         return;
       }
@@ -207,6 +213,31 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
   const selectedAnalysisMove = selectedRecord?.analyzedMoves.find(move => move.ply === selectedTimelineMove?.ply) ?? null;
   const timelineMoves = selectedRecord?.timeline.moves ?? [];
   const selectedMoveIndex = Math.max(0, timelineMoves.findIndex(move => move.ply === selectedTimelineMove?.ply));
+  const currentBoardFen = boardOverrideFen ?? selectedTimelineMove?.fenBefore ?? DEFAULT_START_FEN;
+
+  const livePositionEvaluation = useMemo(() => {
+    if (!positionAnalysis || !selectedRecord) return null;
+    try {
+      const turn = new Chess(positionAnalysis.fen).turn();
+      return gameAnalysisService.normalizeScoreToPerspective(
+        positionAnalysis.primaryScore,
+        turn,
+        selectedRecord.game.userColor
+      );
+    } catch {
+      return null;
+    }
+  }, [positionAnalysis, selectedRecord]);
+
+  const liveVariations = useMemo(
+    () => positionAnalysis
+      ? positionAnalysis.pvs.map(pv => ({
+          ...pv,
+          sanMoves: sanVariation(positionAnalysis.fen, pv.pvMoves),
+        }))
+      : [],
+    [positionAnalysis]
+  );
 
   const graph = useMemo(() => {
     if (!selectedRecord || selectedRecord.analyzedMoves.length === 0) {
@@ -227,6 +258,9 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
   }, [selectedRecord]);
 
   const changeGame = (gameId: string) => {
+    positionAbortRef.current?.abort();
+    setPositionAnalysis(null);
+    setPositionAnalysisError(null);
     const next = records.find(record => record.game.id === gameId);
     setSelectedId(gameId);
     const firstUserMove = next?.timeline.moves.find(move => move.color === next.game.userColor);
@@ -237,9 +271,56 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
   };
 
   const selectPly = (ply: number) => {
+    positionAbortRef.current?.abort();
+    setPositionAnalysis(null);
+    setPositionAnalysisError(null);
     setSelectedPly(ply);
     setBoardOverrideFen(null);
     setActiveVariation(null);
+  };
+
+  const handleBoardPositionChange = (fen: string) => {
+    positionAbortRef.current?.abort();
+    setBoardOverrideFen(fen);
+    setPositionAnalysis(null);
+    setPositionAnalysisError(null);
+    setActiveVariation(null);
+  };
+
+  const analyzeDisplayedPosition = async () => {
+    if (!selectedRecord || isAnalyzingImport || isAnalyzingPosition) return;
+    const fen = currentBoardFen;
+    const controller = new AbortController();
+    positionAbortRef.current?.abort();
+    positionAbortRef.current = controller;
+    setPositionAnalysis(null);
+    setPositionAnalysisError(null);
+    setIsAnalyzingPosition(true);
+
+    try {
+      const result = await gameAnalysisService.evaluatePosition(fen, {
+        depth: Math.min(12, searchDepth + 2),
+        multiPv: 3,
+        signal: controller.signal,
+      });
+      if (!controller.signal.aborted) setPositionAnalysis(result);
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        setPositionAnalysisError(error instanceof Error ? error.message : 'The current position could not be evaluated.');
+      }
+    } finally {
+      if (positionAbortRef.current === controller) positionAbortRef.current = null;
+      setIsAnalyzingPosition(false);
+    }
+  };
+
+  const cancelDisplayedPositionAnalysis = () => {
+    positionAbortRef.current?.abort();
+  };
+
+  const closeAnalyzer = () => {
+    positionAbortRef.current?.abort();
+    onClose();
   };
 
   const handlePgnFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -263,9 +344,14 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
   const analyzeImportedPgn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPanelError(null);
+    if (isAnalyzingPosition) return;
     const pgn = pgnInput.trim();
     if (!pgn) {
       setPanelError('Paste a PGN game or choose a .pgn file first.');
+      return;
+    }
+    if (pgn.length > 1_000_000) {
+      setPanelError('This PGN is larger than 1 MB. Paste one game or split the file into smaller PGNs.');
       return;
     }
 
@@ -375,7 +461,7 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
             <h2 id="game-analyzer-title" className="truncate text-lg font-black text-white sm:text-2xl">Move-by-Move Analyzer</h2>
             <p className="text-[11px] text-slate-400">Engine review is local to this browser. Scores and grades are search-setting dependent.</p>
           </div>
-          <button type="button" onClick={onClose} disabled={isAnalyzingImport} aria-label="Close move analyzer" className="rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-200 hover:bg-white/10 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">Close</button>
+          <button type="button" onClick={closeAnalyzer} disabled={isAnalyzingImport} aria-label="Close move analyzer" className="rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-200 hover:bg-white/10 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">Close</button>
         </header>
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
@@ -403,7 +489,7 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
             <p className="mt-2 text-[10px] leading-relaxed text-slate-500">*MoveWisely’s internal accuracy estimate; experimental and not calibrated to Chess.com or Lichess.</p>
 
             <div className="mt-4 flex gap-2">
-              <button type="button" onClick={() => { setShowImport(value => !value); setPanelError(null); }} className="flex-1 rounded-lg border border-teal-700/60 bg-teal-900/20 px-2.5 py-2 text-xs font-semibold text-teal-200 hover:bg-teal-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">
+              <button type="button" disabled={isAnalyzingPosition} onClick={() => { setShowImport(value => !value); setPanelError(null); }} className="flex-1 rounded-lg border border-teal-700/60 bg-teal-900/20 px-2.5 py-2 text-xs font-semibold text-teal-200 hover:bg-teal-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 disabled:opacity-40">
                 {showImport ? 'Hide PGN import' : 'Import PGN'}
               </button>
               <button type="button" onClick={downloadAnnotatedPgn} disabled={!selectedRecord?.timeline.valid || isAnalyzingImport} className="flex-1 rounded-lg border border-white/15 px-2.5 py-2 text-xs font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">
@@ -430,7 +516,7 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
                   </label>
                 </div>
                 <label htmlFor="search-depth" className="block text-xs font-semibold text-slate-300">Engine search depth</label>
-                <select id="search-depth" value={searchDepth} onChange={event => setSearchDepth(Number(event.target.value) as 6 | 8 | 10)} disabled={isAnalyzingImport} className="w-full rounded-lg border border-white/15 bg-[#05090c] px-2 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-teal-300">
+                <select id="search-depth" value={searchDepth} onChange={event => setSearchDepth(Number(event.target.value) as 6 | 8 | 10)} disabled={isAnalyzingImport || isAnalyzingPosition} className="w-full rounded-lg border border-white/15 bg-[#05090c] px-2 py-2 text-xs text-white focus:outline-none focus:ring-2 focus:ring-teal-300">
                   <option value={6}>6 · Faster</option>
                   <option value={8}>8 · Recommended</option>
                   <option value={10}>10 · Deeper, slower</option>
@@ -516,16 +602,17 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
                         key={`${selectedRecord.game.id}-${selectedPly}-${boardOverrideFen ?? ''}`}
                         initialFen={boardOverrideFen ?? selectedTimelineMove.fenBefore}
                         fenAfterUserMove={selectedTimelineMove.fenAfter}
-                        bestMoveFrom={selectedAnalysisMove?.bestMoveFrom}
-                        bestMoveTo={selectedAnalysisMove?.bestMoveTo}
-                        userMoveFrom={selectedTimelineMove.from}
-                        userMoveTo={selectedTimelineMove.to}
+                        bestMoveFrom={boardOverrideFen ? undefined : selectedAnalysisMove?.bestMoveFrom}
+                        bestMoveTo={boardOverrideFen ? undefined : selectedAnalysisMove?.bestMoveTo}
+                        userMoveFrom={boardOverrideFen ? undefined : selectedTimelineMove.from}
+                        userMoveTo={boardOverrideFen ? undefined : selectedTimelineMove.to}
                         orientation={selectedRecord.game.userColor}
                         interactive={true}
+                        onPositionChange={handleBoardPositionChange}
                       />
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <button type="button" onClick={() => setBoardOverrideFen(null)} disabled={!boardOverrideFen} className="rounded-lg border border-white/15 px-3 py-2 text-[11px] text-slate-300 disabled:opacity-35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">Return to selected position</button>
-                        {selectedAnalysisMove && <span className="self-center text-[10px] text-slate-500">Red: played move · Green: engine recommendation</span>}
+                        <button type="button" onClick={() => { positionAbortRef.current?.abort(); setPositionAnalysis(null); setPositionAnalysisError(null); setBoardOverrideFen(null); setActiveVariation(null); }} disabled={!boardOverrideFen} className="rounded-lg border border-white/15 px-3 py-2 text-[11px] text-slate-300 disabled:opacity-35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">Return to selected position</button>
+                        {selectedAnalysisMove && !boardOverrideFen && <span className="self-center text-[10px] text-slate-500">Red: played move · Green: engine recommendation</span>}
                       </div>
                     </div>
 
