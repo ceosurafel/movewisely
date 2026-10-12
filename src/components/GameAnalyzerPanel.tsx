@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import { CheckupAnalysis, GameRecord, TimeControl } from '../types/chess';
 import { ChessBoardView } from './ChessBoardView';
-import { gameAnalysisService, AnalyzedGameRecord, AnalyzedMoveRecord } from '../services/gameAnalysisService';
+import { gameAnalysisService, AnalyzedGameRecord } from '../services/gameAnalysisService';
 import { buildAnnotatedPgn } from '../services/annotatedPgn';
 
 interface GameAnalyzerPanelProps {
