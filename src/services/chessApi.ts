@@ -19,6 +19,18 @@ function missingUserRating(username: string, platform: string): never {
   throw new Error(`${platform} did not provide a verified rating for "${username}". No rating-based report was generated.`);
 }
 
+/**
+ * Prefer the platform's current rating for the selected time control.
+ * A game-record rating is only a fallback because it can reflect an older rating.
+ */
+export function resolveCurrentRating(profileRating: unknown, games: GameRecord[]): number | null {
+  const currentProfileRating = validRating(profileRating);
+  if (currentProfileRating !== null) return currentProfileRating;
+
+  const mostRecentGameRating = games.find(game => validRating(game.userRating) !== null)?.userRating;
+  return validRating(mostRecentGameRating);
+}
+
 export async function fetchUserGames(
   username: string,
   platform: Platform,
@@ -171,8 +183,8 @@ async function fetchChessComGames(username: string, timeControl: TimeControl): P
     };
   });
 
-  const userRating = formattedGames.find(game => validRating(game.userRating) !== null)?.userRating ?? profileRating;
-  if (!userRating || !Number.isFinite(userRating)) {
+  const userRating = resolveCurrentRating(profileRating, formattedGames);
+  if (userRating === null) {
     throw new Error(`Chess.com did not provide a verified ${timeControl} rating for "${username}". No rating-based report was generated.`);
   }
 
@@ -267,8 +279,8 @@ async function fetchLichessGames(username: string, timeControl: TimeControl): Pr
     };
   });
 
-  const userRating = formattedGames.find(game => validRating(game.userRating) !== null)?.userRating ?? profileRating;
-  if (!userRating || !Number.isFinite(userRating)) {
+  const userRating = resolveCurrentRating(profileRating, formattedGames);
+  if (userRating === null) {
     throw new Error(`Lichess did not provide a verified ${timeControl} rating for "${username}". No rating-based report was generated.`);
   }
 
