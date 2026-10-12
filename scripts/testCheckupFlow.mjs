@@ -261,7 +261,47 @@ try {
   await waitFor(`!document.querySelector('[role="dialog"][aria-modal="true"]')`, 'share dialog closes with Escape', 5_000);
   console.log('PASS: share dialog has clear app-link wording, accessible dialog semantics, and Escape dismissal.');
 
-  console.log('PASS: complete checkup setup → actual engine analysis → corrected report interaction smoke test passed.');
+  await clickAndWait(
+    `(() => { const b = document.querySelector('button[aria-label="Open move-by-move analyzer"]'); if (!b) return false; b.click(); return true; })()`,
+    'open the move-by-move analyzer from the persistent report controls'
+  );
+  await waitFor(
+    `document.querySelector('[role="dialog"][aria-modal="true"] #game-analyzer-title') && document.body.innerText.includes('Move-by-Move Analyzer')`,
+    'move analyzer dialog opens',
+    5_000
+  );
+  const analyzerState = await evaluate(`(() => ({
+    gameSelect: Boolean(document.querySelector('#analyzer-game')),
+    moveCount: document.querySelectorAll('aside button[aria-current]').length,
+    moveButtons: document.querySelectorAll('aside button').length,
+    exportButton: Array.from(document.querySelectorAll('[role="dialog"] button')).some(b => b.textContent.trim() === 'Export PGN'),
+    gradeMethodButton: Array.from(document.querySelectorAll('[role="dialog"] button')).some(b => b.textContent.includes('How MoveWisely grades moves')),
+    evaluationChart: Boolean(document.querySelector('svg[aria-label*="evaluation"]')),
+    bestMoveSection: document.body.innerText.includes('Best move and principal variation')
+  }))()`);
+  if (!analyzerState.gameSelect || analyzerState.moveButtons < 2 || !analyzerState.exportButton || !analyzerState.gradeMethodButton || !analyzerState.evaluationChart || !analyzerState.bestMoveSection) {
+    throw new Error(`Move analyzer is missing required controls or report data: ${JSON.stringify(analyzerState)}`);
+  }
+  console.log('PASS: move analyzer exposes game selection, move navigation, annotated PGN export, evaluation graph, best-move lines, and grading methodology.');
+
+  await clickAndWait(
+    `(() => { const b = Array.from(document.querySelectorAll('[role="dialog"] button')).find(x => x.textContent.includes('How MoveWisely grades moves')); if (!b) return false; b.click(); return true; })()`,
+    'expand the documented move grading methodology'
+  );
+  await waitFor(
+    `document.body.innerText.includes('Score-proxy loss') && document.body.innerText.includes('not the accuracy score reported by Chess.com or Lichess')`,
+    'grade table and experimental metric caveat are visible',
+    5_000
+  );
+  console.log('PASS: move grading thresholds and calibration caveat are disclosed in the analyzer.');
+
+  await clickAndWait(
+    `(() => { const b = document.querySelector('[role="dialog"] button[aria-label="Close move analyzer"]'); if (!b) return false; b.click(); return true; })()`,
+    'close the move analyzer'
+  );
+  await waitFor(`!document.querySelector('[role="dialog"] #game-analyzer-title')`, 'move analyzer closes cleanly', 5_000);
+
+  console.log('PASS: complete checkup setup → actual engine analysis → Phase 1 report navigation → Phase 2 move analyzer browser test passed.');
 } finally {
   socket.close();
 }
