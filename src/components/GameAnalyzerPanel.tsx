@@ -616,6 +616,66 @@ export const GameAnalyzerPanel: React.FC<GameAnalyzerPanelProps> = ({ analysis, 
                       </div>
                     </div>
 
+                    <section className="rounded-xl border border-white/10 bg-[#0b151a] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-bold text-white">Explore and evaluate a position</h4>
+                          <p className="mt-1 text-[10px] leading-relaxed text-slate-500">Play legal moves on the board, then run a fresh Stockfish search for the displayed position.</p>
+                        </div>
+                        {!isAnalyzingPosition ? (
+                          <button type="button" onClick={analyzeDisplayedPosition} disabled={isAnalyzingImport} className="rounded-lg bg-teal-400 px-3 py-2 text-xs font-bold text-slate-950 hover:bg-teal-300 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Analyze position</button>
+                        ) : (
+                          <button type="button" onClick={cancelDisplayedPositionAnalysis} className="rounded-lg border border-rose-800/60 px-3 py-2 text-xs text-rose-200 hover:bg-rose-950/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-300">Cancel search</button>
+                        )}
+                      </div>
+                      {isAnalyzingPosition && <p role="status" className="mt-3 text-xs text-teal-200">Stockfish is evaluating the displayed position at depth {Math.min(12, searchDepth + 2)}…</p>}
+                      {positionAnalysisError && <p role="alert" className="mt-3 rounded-lg border border-rose-900/70 bg-rose-950/30 p-3 text-xs text-rose-200">{positionAnalysisError}</p>}
+                      {positionAnalysis && positionAnalysis.fen === currentBoardFen && (
+                        <div className="mt-3 space-y-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                              <p className="text-[10px] text-slate-500">Evaluation · your perspective</p>
+                              <p className="mt-1 font-mono text-lg font-bold text-teal-100">{livePositionEvaluation?.formatted ?? positionAnalysis.primaryScore.formatted}</p>
+                            </div>
+                            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+                              <p className="text-[10px] text-slate-500">Search information</p>
+                              <p className="mt-1 text-xs font-semibold text-slate-200">Depth {positionAnalysis.depthReached} · {positionAnalysis.nodes.toLocaleString()} nodes</p>
+                              <p className="mt-1 text-[10px] text-slate-500">{positionAnalysis.timeMs} ms · Stockfish 19 Lite WASM</p>
+                            </div>
+                          </div>
+                          {positionAnalysis.terminalKind ? (
+                            <p className="text-xs text-amber-200">Terminal position: {positionAnalysis.terminalKind === 'checkmate' ? 'checkmate' : 'draw'}. No legal best move is fabricated.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-xs text-slate-400">Top move: <strong className="text-white">{sanVariation(positionAnalysis.fen, [positionAnalysis.bestMove])[0] ?? positionAnalysis.bestMove}</strong></p>
+                              {liveVariations.slice(0, 3).map((pv, index) => (
+                                <div key={`live-${pv.multipv}-${index}`} className="rounded-lg border border-white/10 bg-black/15 p-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{index === 0 ? 'Principal line' : `Alternative ${pv.multipv}`}</span>
+                                    <span className="font-mono text-[10px] text-teal-200">{pv.score.formatted}</span>
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap gap-1.5">
+                                    {pv.sanMoves.slice(0, 12).map((san, sanIndex) => (
+                                      <button key={`live-${pv.multipv}-${sanIndex}-${san}`} type="button" title={`Show position after ${sanIndex + 1} move(s) of this engine line`} onClick={() => {
+                                        const fen = fenAfterVariation(positionAnalysis.fen, pv.pvMoves, sanIndex + 1);
+                                        if (fen) {
+                                          positionAbortRef.current?.abort();
+                                          setBoardOverrideFen(fen);
+                                          setPositionAnalysis(null);
+                                          setActiveVariation(pv.multipv);
+                                        }
+                                      }} className="rounded border border-white/10 px-1.5 py-1 text-[11px] text-slate-200 hover:border-teal-500/50 hover:bg-teal-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300">{san}</button>
+                                    ))}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <p className="mt-3 text-[10px] leading-relaxed text-slate-500">This fresh position search uses the selected import depth plus two plies, up to depth 12, and three principal variations. Scores are search-dependent and are not calibrated win odds.</p>
+                    </section>
+
                     {selectedAnalysisMove && (
                       <div className="grid grid-cols-2 gap-2">
                         <div className="rounded-xl border border-white/10 bg-[#0a1419] p-3">
