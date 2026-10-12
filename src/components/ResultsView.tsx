@@ -1134,7 +1134,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               aria-label="Previous report section"
               className="rounded-lg border border-white/15 bg-white/5 px-2.5 sm:px-4 py-2 text-[11px] sm:text-xs font-semibold text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300"
             >
-              ← <span className="hidden xs:inline">Prev</span><span className="xs:hidden">Back</span>
+              ← <span className="hidden sm:inline">Prev</span><span className="sm:hidden">Back</span>
             </button>
             <div className="hidden sm:block min-w-0 flex-1 text-center" aria-live="polite" aria-atomic="true">
               <span className="block truncate text-[10px] uppercase tracking-wider text-slate-400">{STORY_SECTIONS[currentSlide]}</span>
@@ -1168,7 +1168,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               aria-label="Next report section"
               className="rounded-lg bg-teal-400 px-2.5 sm:px-4 py-2 text-[11px] sm:text-xs font-bold text-slate-950 hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
-              <span className="hidden xs:inline">Next</span><span className="xs:hidden">Next</span> →
+              <span className="hidden sm:inline">Next</span><span className="sm:hidden">Next</span> →
             </button>
           </nav>
         </div>
