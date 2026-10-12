@@ -617,7 +617,9 @@ export class GameAnalysisService {
       bestMoveTo: bestTo,
       bestMovePromotion: bestPromotion,
       fenAfterBestMove,
-      pvs: engineAfter.pvs,
+      // Variations must start at the position where the played move was chosen.
+      // engineAfter.pvs start one ply later and do not explain bestMoveUci.
+      pvs: engineBefore.pvs,
       evalLossCp,
       expectedPointsBefore: expBefore,
       expectedPointsAfter: expAfter,
@@ -641,6 +643,14 @@ export class GameAnalysisService {
     game: GameRecord,
     options?: GameAnalysisOptions
   ): Promise<AnalyzedGameRecord> {
+    options?.onProgress?.({
+      gameIndex: 0,
+      totalGames: 1,
+      phase: 'parsing',
+      percent: 1,
+      statusText: 'Validating PGN and reconstructing the legal move timeline',
+    });
+
     const timeline = this.reconstructTimeline(game.pgn);
     if (!timeline.valid) {
       return {
@@ -682,6 +692,13 @@ export class GameAnalysisService {
 
     const analyzedMoves: AnalyzedMoveRecord[] = [];
     const gradeResults: MoveGradeResult[] = [];
+    options?.onProgress?.({
+      gameIndex: 0,
+      totalGames: 1,
+      phase: 'engine',
+      percent: 4,
+      statusText: `Analyzing ${userMoves.length} moves for ${userColorStr === 'white' ? 'White' : 'Black'}`,
+    });
     let userBlundersCount = 0;
     let userMistakesCount = 0;
     let userInaccuraciesCount = 0;
@@ -722,6 +739,14 @@ export class GameAnalysisService {
           if (!worstMove || analyzed.evalLossCp > worstMove.evalLossCp) {
             worstMove = analyzed;
           }
+
+          options?.onProgress?.({
+            gameIndex: 0,
+            totalGames: 1,
+            phase: 'engine',
+            percent: 4 + Math.round((analyzedMoves.length / userMoves.length) * 90),
+            statusText: `Analyzed ${analyzedMoves.length} of ${userMoves.length} moves`,
+          });
         } catch (err: unknown) {
           if (options?.signal?.aborted) {
             wasCancelled = true;
@@ -743,6 +768,14 @@ export class GameAnalysisService {
     } else if (analyzedMoves.length < userMoves.length) {
       status = analyzedMoves.length > 0 ? 'partial' : 'failed';
     }
+
+    options?.onProgress?.({
+      gameIndex: 0,
+      totalGames: 1,
+      phase: 'synthesis',
+      percent: 96,
+      statusText: 'Summarizing grades and evaluation changes',
+    });
 
     const accuracyStats = aggregateGameAccuracy(gradeResults);
     const userAccuracy =
