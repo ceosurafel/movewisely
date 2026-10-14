@@ -215,7 +215,7 @@ export class CoachingService {
     // 2. Extract and validate engine continuation line (Stockfish 19 PV)
     const continuationSteps = this.extractValidContinuationLine(
       move.fenAfter,
-      move.pvs,
+      move.pvsAfter ?? [],
       move.color === 'white' ? 'black' : 'white',
       move.moveNumber
     );
@@ -493,7 +493,7 @@ export class CoachingService {
       const chessAfterUser = new Chess(move.fenAfter);
       const continuationSteps = this.extractValidContinuationLine(
         move.fenAfter,
-        move.pvs,
+        move.pvsAfter ?? [],
         move.color === 'white' ? 'black' : 'white',
         move.moveNumber
       );
