@@ -176,7 +176,7 @@ async function runPhase4Tests() {
     for (const evidence of weakness.evidences) assert(Boolean(evidence.gameId && evidence.fenBefore && evidence.playedSan), `Evidence points to a reviewed position: ${evidence.gameId}`);
     if (weakness.id === 'weak-phase') assert(diagnostics.losses >= 3 && weakness.supportingGamesCount >= 2, 'Phase recurrence needs at least three losses and two losses in that phase');
     if (weakness.id === 'weak-opening') assert(diagnostics.topLeakOpening.isLeak === true && weakness.evidences.length > 0, 'Opening recurrence requires the evidence-backed leak flag');
-    if (weakness.id === 'weak-late-game-errors') assert(!/clock trouble|fatigue|stress/i.test(weakness.description), 'Move number cannot imply clock pressure or fatigue');
+    if (weakness.id === 'weak-late-game-errors') assert(/Move number alone cannot establish clock trouble or calculation fatigue/i.test(weakness.description), 'Late-game finding explicitly disclaims unsupported clock/fatigue inference');
   }
 
   // -------------------------------------------------------------
