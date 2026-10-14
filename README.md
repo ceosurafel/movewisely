@@ -14,6 +14,8 @@ It is intended to help players review PGN games, inspect move-by-move engine rec
 - PGN file/text import for analyzing either side, plus annotated PGN export for reviewed positions.
 - Move classification and multi-game diagnostics.
 - Coaching explanations and training recommendations.
+
+Engine-backed coaching keeps the best-move principal variation rooted before the player's move separate from the opponent continuation rooted after the played move. Refutation explanations and tactical checks use the after-move line; a large evaluation drop alone is not treated as proof of a specific tactical motif.
 - Regression tests for engine behavior, game reconstruction, scoring, diagnostics, coaching, and release-critical cases.
 
 The available features and their maturity may change. Check the UI and tests in the current branch rather than assuming every listed capability has been validated for every input.
