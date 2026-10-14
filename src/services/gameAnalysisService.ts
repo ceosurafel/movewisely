@@ -94,8 +94,10 @@ export interface AnalyzedMoveRecord {
   bestMovePromotion?: string;
   fenAfterBestMove: string;
 
-  // Principal variations
+  // Best-move principal variations rooted at the position before the player's move.
   pvs: PrincipalVariation[];
+  /** Opponent continuation lines rooted after the played move; used for refutations and motifs. */
+  pvsAfter?: PrincipalVariation[];
 
   // Evaluation loss
   evalLossCp: number;
@@ -617,9 +619,10 @@ export class GameAnalysisService {
       bestMoveTo: bestTo,
       bestMovePromotion: bestPromotion,
       fenAfterBestMove,
-      // Variations must start at the position where the played move was chosen.
-      // engineAfter.pvs start one ply later and do not explain bestMoveUci.
+      // Keep the two analysis roots distinct: pvs starts before the played move,
+      // while pvsAfter starts at the resulting position and describes legal refutations.
       pvs: engineBefore.pvs,
+      pvsAfter: engineAfter.pvs,
       evalLossCp,
       expectedPointsBefore: expBefore,
       expectedPointsAfter: expAfter,
