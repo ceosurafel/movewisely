@@ -1295,6 +1295,7 @@ export class PlayerDiagnosticsService {
           : 'Insufficient loss sample for a recurring phase diagnosis.',
         coachTip: 'Review the attached engine-reviewed positions before choosing a phase-specific training focus.',
       },
+      {
         id: 'leak-tactics',
         category: 'tactics',
         title: 'Tactical Blindspots & Piece Vulnerabilities',
