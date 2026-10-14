@@ -90,3 +90,9 @@ Only successfully completed games are eligible for cross-game diagnostics. The s
 Current code version: `MoveWisely Accuracy V1.1 (Experimental Score Proxy; Uncalibrated)`.
 
 Changes to evaluation mapping, grade thresholds, mate handling, or aggregation require a new methodology version and regression fixtures. Before calling any version calibrated, create a representative labeled dataset, select a defensible reference outcome metric, tune parameters only on training data, report held-out validation results, and measure calibration error. Do not claim parity with any commercial platform without independent evidence.
+
+## Engine-line roots and tactical evidence
+
+Each analyzed move preserves two separate engine lines: the best-move principal variation from the position **before** the played move, and the opponent's continuation line from the position **after** it. Best-move selection uses the former; refutation explanations and move-triggered tactical checks use the latter. These lines must not be interchanged because their first move is legal only from its own root position.
+
+A large centipawn/score-proxy drop is evidence of an evaluation loss, not by itself evidence of a fork, pin, hanging piece, or forced mate. Specific tactical labels require supporting board geometry and/or a legal after-move engine continuation. When no specific motif is substantiated, the evidence remains an evaluation drop rather than being labelled a tactical mistake.

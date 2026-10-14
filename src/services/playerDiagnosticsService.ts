@@ -332,12 +332,13 @@ export class PlayerDiagnosticsService {
             evalLossCp: move.evalLossCp,
             expectedPointsLoss: move.expectedPointsLoss,
             grade: move.judgment,
+            // Evaluation-loss magnitude alone does not establish a tactical motif.
             theme:
               move.evalLossCp >= 300
-                ? 'Decisive Blunder'
+                ? 'Decisive Evaluation Drop'
                 : move.evalLossCp >= 150
-                ? 'Tactical Mistake'
-                : 'Positional Inaccuracy',
+                ? 'Major Evaluation Drop'
+                : 'Evaluation Drop',
             phase: movePhase,
           });
         }
@@ -857,7 +858,9 @@ export class PlayerDiagnosticsService {
         if (!motifAssigned && (move.evalLossCp >= 150 || move.judgment === 'blunder')) {
           generalLossEvidences.push({
             ...baseEvidence,
-            theme: move.evalLossCp >= 300 ? 'Decisive Evaluation Drop' : 'Tactical Slip',
+            // If no motif was verified from board geometry and the legal after-move PV,
+            // keep the evidence descriptive instead of guessing that it was tactical.
+            theme: move.evalLossCp >= 300 ? 'Decisive Evaluation Drop' : 'Major Evaluation Drop',
           });
         }
       }
