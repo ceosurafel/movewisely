@@ -369,26 +369,29 @@ export class PlayerDiagnosticsService {
     const mistakesPerGame = parseFloat((totalMistakes / Math.max(1, completedGames.length)).toFixed(1));
 
     // 6. Phase-Based Errors Tied to Actual Positions
-    const phaseEvidences = {
+    const phaseLossGameIds = {
+      opening: new Set(completedGames.filter(ag => ag.game.result === 'loss' && ag.lossPhase === 'Opening').map(ag => ag.game.id)),
+      middlegame: new Set(completedGames.filter(ag => ag.game.result === 'loss' && ag.lossPhase !== 'Opening' && ag.lossPhase !== 'Endgame').map(ag => ag.game.id)),
+      endgame: new Set(completedGames.filter(ag => ag.game.result === 'loss' && ag.lossPhase === 'Endgame').map(ag => ag.game.id)),
+    };
+    const openingLosses = phaseLossGameIds.opening.size;
+    const middlegameLosses = phaseLossGameIds.middlegame.size;
+    const endgameLosses = phaseLossGameIds.endgame.size;
+    const actualLosses = openingLosses + middlegameLosses + endgameLosses;
+    const lossGamesByPhase = { opening: openingLosses, middlegame: middlegameLosses, endgame: endgameLosses };
+    const isLossDataAvailable = actualLosses > 0;
+    const phaseAllEvidence = {
       opening: allEvidences.filter(e => e.phase === 'Opening'),
       middlegame: allEvidences.filter(e => e.phase === 'Middlegame'),
       endgame: allEvidences.filter(e => e.phase === 'Endgame'),
     };
-
-    let openingLosses = 0;
-    let middlegameLosses = 0;
-    let endgameLosses = 0;
-
-    for (const ag of completedGames) {
-      if (ag.game.result === 'loss') {
-        if (ag.lossPhase === 'Opening') openingLosses++;
-        else if (ag.lossPhase === 'Endgame') endgameLosses++;
-        else middlegameLosses++;
-      }
-    }
-
-    const actualLosses = openingLosses + middlegameLosses + endgameLosses;
-    const isLossDataAvailable = actualLosses > 0;
+    const phaseEvidences = isLossDataAvailable
+      ? {
+          opening: phaseAllEvidence.opening.filter(e => phaseLossGameIds.opening.has(e.gameId)),
+          middlegame: phaseAllEvidence.middlegame.filter(e => phaseLossGameIds.middlegame.has(e.gameId)),
+          endgame: phaseAllEvidence.endgame.filter(e => phaseLossGameIds.endgame.has(e.gameId)),
+        }
+      : phaseAllEvidence;
 
     let openingLossesPct = 0;
     let middlegameLossesPct = 0;
@@ -413,13 +416,9 @@ export class PlayerDiagnosticsService {
         weakestPhaseLossPct = middlegameLossesPct;
       }
 
-      phaseExplanation = `${weakestPhase} mistakes were the decisive factor in ${weakestPhaseLossPct}% of your losses (${
-        weakestPhase === 'Opening'
-          ? phaseEvidences.opening.length
-          : weakestPhase === 'Middlegame'
-          ? phaseEvidences.middlegame.length
-          : phaseEvidences.endgame.length
-      } verified errors).`;
+      const phaseLossCount = lossGamesByPhase[weakestPhase === 'Opening' ? 'opening' : weakestPhase === 'Middlegame' ? 'middlegame' : 'endgame'];
+      const phaseEvidenceCount = phaseEvidences[weakestPhase === 'Opening' ? 'opening' : weakestPhase === 'Middlegame' ? 'middlegame' : 'endgame'].length;
+      phaseExplanation = weakestPhase + ' accounted for ' + weakestPhaseLossPct + '% (' + phaseLossCount + '/' + actualLosses + ') of recorded defeats across ' + totalGames + ' completed games. ' + phaseEvidenceCount + ' qualifying position(s) from those losses are attached as evidence.';
     } else {
       // Zero losses recorded! Phase-of-loss statistics are unavailable / not applicable.
       // Never manufacture an endgame loss percentage of 100%.
@@ -452,6 +451,8 @@ export class PlayerDiagnosticsService {
       endgameErrorsCount: phaseEvidences.endgame.length,
       weakestPhase,
       weakestPhaseLossPct,
+      lossGamesSampleSize: actualLosses,
+      lossGamesByPhase,
       explanation: phaseExplanation,
       isLossDataAvailable,
       phaseEvidences,
@@ -484,7 +485,7 @@ export class PlayerDiagnosticsService {
     const openings = this.extractVerifiedOpeningStats(completedGames);
 
     let mostFrequentOpening = openings[0]?.openingName || 'None';
-    const topLeakCandidate = openings.find(o => o.isLeak) || openings[0];
+    const topLeakCandidate = openings.find(o => o.isLeak && o.evidences.length > 0) || openings[0];
     const topLeakOpening = topLeakCandidate
       ? {
           name: topLeakCandidate.openingName,
@@ -492,6 +493,7 @@ export class PlayerDiagnosticsService {
           gamesCount: topLeakCandidate.sampleSize,
           scorePct: topLeakCandidate.scorePct,
           averageExitEvalCp: topLeakCandidate.averageExitEvalCp,
+          exitEvaluationSampleSize: topLeakCandidate.exitEvaluationSampleSize,
           blundersConceded: topLeakCandidate.blundersConceded,
           lossRatePct: topLeakCandidate.lossRatePct,
           isLeak: topLeakCandidate.isLeak,
@@ -506,7 +508,8 @@ export class PlayerDiagnosticsService {
           eco: '',
           gamesCount: 0,
           scorePct: 0,
-          averageExitEvalCp: 0,
+          averageExitEvalCp: null,
+          exitEvaluationSampleSize: 0,
           blundersConceded: 0,
           lossRatePct: 0,
           isLeak: false,
@@ -523,7 +526,7 @@ export class PlayerDiagnosticsService {
         const firstEndgameMove = endgameMoves[0];
         if (firstEndgameMove.evalCpBefore >= 150) {
           const blunderMove = endgameMoves.find(m => m.evalLossCp >= 150 || m.judgment === 'blunder');
-          if (blunderMove || ag.game.result !== 'win') {
+          if (blunderMove && ag.game.result !== 'win') {
             endgameConversionSlipCount++;
             if (blunderMove) {
               endgameConversionEvidences.push({
@@ -549,7 +552,8 @@ export class PlayerDiagnosticsService {
       }
     }
 
-    const timeTroubleEvidences = allEvidences.filter(e => e.moveNumber >= 35);
+    // Move number is not clock telemetry; only count engine-graded mistakes/blunders.
+    const timeTroubleEvidences = allEvidences.filter(e => e.moveNumber >= 35 && (e.grade === 'mistake' || e.grade === 'blunder'));
 
     // 10. Recurring Weaknesses with Supporting Game and Move References
     const recurringWeaknesses = this.extractRecurringWeaknesses({
@@ -558,6 +562,7 @@ export class PlayerDiagnosticsService {
       targetBlunders: targetBenchmark.expectedBlundersPerGame,
       tacticalPatterns,
       phases,
+      allEvidences,
       topLeakOpening,
       overallAccuracy,
       targetAccuracy: targetBenchmark.expectedAccuracy,
@@ -583,7 +588,7 @@ export class PlayerDiagnosticsService {
       overallAccuracy,
       totalGames,
       endgameConversionSlipCount,
-      timeTroubleCount: timeTroubleEvidences.length,
+      timeTroubleCount: new Set(timeTroubleEvidences.map(e => e.gameId)).size,
     });
 
     const criticalOrModerateCount = leaks.filter(
@@ -870,6 +875,7 @@ export class PlayerDiagnosticsService {
         ),
         severity: hangingEvidences.length >= 4 ? 'critical' : 'moderate',
         sampleEvidences: hangingEvidences.slice(0, 3),
+        evidences: hangingEvidences,
         remediationAdvice:
           'Before releasing your move, verify that your landing square has friendly defense and leaves no other piece exposed.',
       });
@@ -887,6 +893,7 @@ export class PlayerDiagnosticsService {
         ),
         severity: forkEvidences.length >= 3 ? 'critical' : 'moderate',
         sampleEvidences: forkEvidences.slice(0, 3),
+        evidences: forkEvidences,
         remediationAdvice:
           'Scan knight jumps and queen diagonals before committing to pawn breaks or moving pieces into unprotected alignment.',
       });
@@ -904,6 +911,7 @@ export class PlayerDiagnosticsService {
         ),
         severity: pinEvidences.length >= 3 ? 'critical' : 'moderate',
         sampleEvidences: pinEvidences.slice(0, 3),
+        evidences: pinEvidences,
         remediationAdvice:
           'Step kings and queens off open lines and reinforce pinned defenders immediately.',
       });
@@ -921,13 +929,14 @@ export class PlayerDiagnosticsService {
         ),
         severity: missedFreePieceEvidences.length >= 3 ? 'critical' : 'moderate',
         sampleEvidences: missedFreePieceEvidences.slice(0, 3),
+        evidences: missedFreePieceEvidences,
         remediationAdvice:
           'Scan your opponent’s loose pieces on every single turn before looking for your own attacking moves.',
       });
     }
 
     // 5. General Evaluation Losses (When reliable motif detection is not available)
-    if (generalLossEvidences.length > 0 && patterns.length === 0) {
+    if (generalLossEvidences.length > 0) {
       patterns.push({
         id: 'pat-general-loss',
         theme: 'general_eval_loss',
@@ -938,6 +947,7 @@ export class PlayerDiagnosticsService {
         ),
         severity: generalLossEvidences.length >= 4 ? 'critical' : 'moderate',
         sampleEvidences: generalLossEvidences.slice(0, 3),
+        evidences: generalLossEvidences,
         remediationAdvice:
           'Slow down at critical turning points and calculate the opponent’s most forcing response before committing.',
       });
@@ -1012,9 +1022,7 @@ export class PlayerDiagnosticsService {
       const avgExitEval =
         val.exitEvals.length > 0
           ? Math.round(val.exitEvals.reduce((a, b) => a + b, 0) / val.exitEvals.length)
-          : 0;
-
-      const isLeak = sampleSize >= 2 ? scorePct <= 40 : val.losses > val.wins;
+          : null;
 
       // Extract evidences from these games
       const evidences: DiagnosticEvidence[] = [];
@@ -1042,10 +1050,13 @@ export class PlayerDiagnosticsService {
         }
       }
 
+      const isLeak = sampleSize >= 3 && scorePct <= 40 && evidences.length > 0 && name !== 'Unknown Opening' && name !== 'None';
+
       result.push({
         openingName: name,
         eco: val.eco,
         sampleSize,
+        exitEvaluationSampleSize: val.exitEvals.length,
         wins: val.wins,
         losses: val.losses,
         draws: val.draws,
@@ -1072,6 +1083,7 @@ export class PlayerDiagnosticsService {
     targetBlunders: number;
     tacticalPatterns: VerifiedTacticalPattern[];
     phases: VerifiedPhaseBreakdown;
+    allEvidences: DiagnosticEvidence[];
     topLeakOpening: any;
     overallAccuracy: number;
     targetAccuracy: number;
@@ -1085,6 +1097,7 @@ export class PlayerDiagnosticsService {
       targetBlunders,
       tacticalPatterns,
       phases,
+      allEvidences,
       topLeakOpening,
       endgameConversionSlipCount,
       endgameConversionEvidences,
@@ -1093,9 +1106,11 @@ export class PlayerDiagnosticsService {
 
     const list: VerifiedRecurringWeakness[] = [];
 
-    // Weakness 1: Unforced tactical blunders
-    if (blundersPerGame > targetBlunders) {
-      const evidences = tacticalPatterns.flatMap(p => p.sampleEvidences);
+    // Weakness 1: Only call blunders recurring when actual engine-graded blunders span multiple games.
+    const blunderEvidences = allEvidences.filter(e => e.grade === 'blunder');
+    const blunderGameCount = new Set(blunderEvidences.map(e => e.gameId)).size;
+    if (blundersPerGame > targetBlunders && blunderGameCount >= 2) {
+      const evidences = blunderEvidences;
       list.push({
         id: 'weak-blunders',
         category: 'blunders',
@@ -1109,8 +1124,9 @@ export class PlayerDiagnosticsService {
       });
     }
 
-    // Weakness 2: Phase Breakdown (Only when loss data is available)
-    if (phases.isLossDataAvailable && phases.weakestPhaseLossPct >= 40) {
+    // A recurring phase-loss concentration needs at least three losses and at least two in the phase.
+    const phaseKey = phases.weakestPhase === 'Opening' ? 'opening' : phases.weakestPhase === 'Endgame' ? 'endgame' : 'middlegame';
+    if (phases.isLossDataAvailable && phases.lossGamesSampleSize >= 3 && phases.lossGamesByPhase[phaseKey] >= 2 && phases.weakestPhaseLossPct >= 40) {
       const phaseEvs =
         phases.weakestPhase === 'Opening'
           ? phases.phaseEvidences.opening
@@ -1132,7 +1148,7 @@ export class PlayerDiagnosticsService {
     }
 
     // Weakness 3: Repertoire deficit
-    if (topLeakOpening && topLeakOpening.gamesCount >= 2 && topLeakOpening.name !== 'None' && topLeakOpening.name !== 'Unknown Opening' && topLeakOpening.scorePct <= 45) {
+    if (topLeakOpening?.isLeak === true && topLeakOpening.gamesCount >= 3 && topLeakOpening.name !== 'None' && topLeakOpening.name !== 'Unknown Opening' && topLeakOpening.evidences?.length > 0) {
       list.push({
         id: 'weak-opening',
         category: 'openings',
@@ -1147,7 +1163,7 @@ export class PlayerDiagnosticsService {
     }
 
     // Weakness 4: Endgame Conversion Slip
-    if (endgameConversionSlipCount && endgameConversionSlipCount > 0) {
+    if (endgameConversionSlipCount && endgameConversionSlipCount >= 2 && endgameConversionEvidences && endgameConversionEvidences.length > 0) {
       list.push({
         id: 'weak-endgame-conversion',
         category: 'phases',
@@ -1162,10 +1178,14 @@ export class PlayerDiagnosticsService {
     }
 
     // Weakness 5: Tactical Blindspots (verified forks, pins, hanging pieces)
-    const tacticalEvs = tacticalPatterns
-      .filter(p => p.theme === 'hanging_piece' || p.theme === 'fork' || p.theme === 'pin')
-      .flatMap(p => p.sampleEvidences);
-    if (tacticalEvs.length > 0) {
+    const tacticalByMove = new Map<string, DiagnosticEvidence>();
+    for (const ev of tacticalPatterns.filter(p => p.theme === 'hanging_piece' || p.theme === 'fork' || p.theme === 'pin').flatMap(p => p.evidences ?? p.sampleEvidences)) {
+      const key = ev.gameId + ':' + ev.moveNumber;
+      if (!tacticalByMove.has(key)) tacticalByMove.set(key, ev);
+    }
+    const tacticalEvs = Array.from(tacticalByMove.values());
+    const tacticalGameCount = new Set(tacticalEvs.map(e => e.gameId)).size;
+    if (tacticalEvs.length > 0 && tacticalGameCount >= 2) {
       list.push({
         id: 'weak-tactics',
         category: 'tactics',
@@ -1180,12 +1200,12 @@ export class PlayerDiagnosticsService {
     }
 
     // Weakness 6: Late-Game Time Trouble & Fatigue
-    if (timeTroubleEvidences && timeTroubleEvidences.length >= 2) {
+    if (timeTroubleEvidences && timeTroubleEvidences.length >= 2 && new Set(timeTroubleEvidences.map(e => e.gameId)).size >= 2) {
       list.push({
         id: 'weak-time-trouble',
         category: 'blunders',
-        title: 'Late-Game Clock & Calculation Stress',
-        description: `Multiple decisive blunders occurred past move 35 across ${new Set(timeTroubleEvidences.map(e => e.gameId)).size} game(s), indicating calculation fatigue or clock pressure.`,
+        title: 'Late-Game Mistakes (Move 35+)',
+        description: `Engine-graded mistakes/blunders occurred after move 35 in ${new Set(timeTroubleEvidences.map(e => e.gameId)).size} separate games. Move number alone cannot establish clock trouble or calculation fatigue.`,
         frequencyText: `${timeTroubleEvidences.length} late-game errors`,
         measuredSeverity: 'moderate',
         supportingGamesCount: new Set(timeTroubleEvidences.map(e => e.gameId)).size,
@@ -1300,19 +1320,19 @@ export class PlayerDiagnosticsService {
       {
         id: 'leak-openings',
         category: 'openings',
-        title: (topLeakOpening.name && topLeakOpening.name !== 'None' && topLeakOpening.name !== 'Unknown Opening')
-          ? `Repertoire Deficit in ${topLeakOpening.name}`
-          : 'Opening Repertoire Deficit',
-        description: (topLeakOpening.name && topLeakOpening.name !== 'None' && topLeakOpening.name !== 'Unknown Opening')
-          ? `In ${topLeakOpening.gamesCount} games with ${topLeakOpening.name}, you scored only ${topLeakOpening.scorePct}%.`
-          : 'Early-game inaccuracies occurred before move 12, conceding initiative out of the opening.',
+        title: topLeakOpening.isLeak === true
+          ? `Evidence-Backed Opening Errors: ${topLeakOpening.name}`
+          : 'Opening Score Snapshot (No Recurring Leak Confirmed)',
+        description: topLeakOpening.isLeak === true
+          ? `Scored ${topLeakOpening.scorePct}% across ${topLeakOpening.gamesCount} games with ${topLeakOpening.evidences?.length ?? 0} engine-reviewed opening error position(s).`
+          : `Highest-volume opening: ${topLeakOpening.name} (${topLeakOpening.gamesCount} game(s), ${topLeakOpening.scorePct}% score). A recurring leak requires at least 3 games and linked engine-reviewed opening errors.`,
         userMetric: `${topLeakOpening.scorePct}% score`,
         userNumeric: topLeakOpening.scorePct,
         targetMetric: '52% balanced',
         targetNumeric: 52,
-        impactScore: (100 - topLeakOpening.scorePct) * 0.75,
+        impactScore: topLeakOpening.isLeak === true ? (100 - topLeakOpening.scorePct) * 0.55 : 0,
         severity: (topLeakOpening.scorePct < 35 ? 'critical' : 'moderate') as 'critical' | 'moderate' | 'minor',
-        impact: 'Entering cramped positions out of the opening forces you to spend excessive clock time defending.',
+        impact: topLeakOpening.isLeak === true ? 'The outcome pattern has linked reviewed positions but does not establish a cause of future losses.' : 'Not enough repeated, position-linked evidence to diagnose an opening weakness.',
         coachTip: topLeakOpening.advice || 'Study standard book lines 3–8 to reach balanced positions.',
       },
       {
@@ -1473,10 +1493,12 @@ export class PlayerDiagnosticsService {
     // TASK 3: Worst Opening Repertoire Patch
     tasks.push({
       id: 'task-opening-repertoire',
-      title: `Patch Repertoire Leak in ${topLeakOpening.name} (${topLeakOpening.scorePct}% score)`,
+      title: topLeakOpening?.isLeak === true ? `Review Engine-Verified Errors in ${topLeakOpening.name}` : 'Build an Opening Review Sample',
       duration: '20 min',
       frequency: 'Once this week',
-      description: `In ${topLeakOpening.gamesCount} games with ${topLeakOpening.name}, you scored ${topLeakOpening.scorePct}%. Memorize the first 6 book moves and standard pawn breaks to stop getting cramped positions.`,
+      description: topLeakOpening?.isLeak === true
+        ? `Across ${topLeakOpening.gamesCount} games, the score was ${topLeakOpening.scorePct}% and ${topLeakOpening.evidences?.length ?? 0} reviewed opening-error position(s) were attached. Study these positions first.`
+        : 'No recurring opening leak met the minimum evidence rule. Save and review positions before changing your repertoire.',
       drillType: 'opening_prep',
       completed: false,
     });
@@ -1585,6 +1607,8 @@ export class PlayerDiagnosticsService {
         endgameErrorsCount: 0,
         weakestPhase: 'Middlegame',
         weakestPhaseLossPct: 0,
+        lossGamesSampleSize: 0,
+        lossGamesByPhase: { opening: 0, middlegame: 0, endgame: 0 },
         explanation: 'Insufficient games to compute phase errors.',
         isLossDataAvailable: false,
         phaseEvidences: { opening: [], middlegame: [], endgame: [] },
@@ -1598,7 +1622,8 @@ export class PlayerDiagnosticsService {
         gamesCount: 0,
         scorePct: 0,
         advice: 'Play more games to unlock opening diagnostics.',
-        averageExitEvalCp: 0,
+        averageExitEvalCp: null,
+          exitEvaluationSampleSize: 0,
       },
       recurringWeaknesses: [],
       spotlightMove: null,

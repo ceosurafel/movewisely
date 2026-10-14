@@ -148,6 +148,8 @@ async function runPhase4Tests() {
   assert(Array.isArray(phases.phaseEvidences.opening), 'Opening phase evidences array exists');
   assert(Array.isArray(phases.phaseEvidences.middlegame), 'Middlegame phase evidences array exists');
   assert(Array.isArray(phases.phaseEvidences.endgame), 'Endgame phase evidences array exists');
+  assert(phases.lossGamesSampleSize === diagnostics.losses, 'Phase loss denominator matches completed recorded losses');
+  assert(phases.lossGamesByPhase.opening + phases.lossGamesByPhase.middlegame + phases.lossGamesByPhase.endgame === diagnostics.losses, 'Per-phase loss counts sum exactly to recorded losses');
 
   // -------------------------------------------------------------
   // TEST 6: Opening Statistics with Sample Sizes & Exit Evals
@@ -158,8 +160,10 @@ async function runPhase4Tests() {
 
   const topOpening = diagnostics.openings[0];
   assert(topOpening.sampleSize > 0, `Top opening ${topOpening.openingName} has sample size > 0: ${topOpening.sampleSize}`);
-  assert(typeof topOpening.averageExitEvalCp === 'number', `Opening exit evaluation is numeric: ${topOpening.averageExitEvalCp} cp`);
+  assert(topOpening.exitEvaluationSampleSize >= 0 && topOpening.exitEvaluationSampleSize <= topOpening.sampleSize, 'Exit-evaluation sample is bounded by opening game sample');
+  assert(topOpening.exitEvaluationSampleSize === 0 ? topOpening.averageExitEvalCp === null : typeof topOpening.averageExitEvalCp === 'number', 'Missing exit positions are null, not fabricated equal evaluations');
   assert(topOpening.scorePct >= 0 && topOpening.scorePct <= 100, `Opening score is valid percentage: ${topOpening.scorePct}%`);
+  assert(diagnostics.openings.every(opening => !opening.isLeak || (opening.sampleSize >= 3 && opening.scorePct <= 40 && opening.evidences.length > 0)), 'Opening leak requires 3+ games, low score, and linked engine-reviewed evidence');
 
   // -------------------------------------------------------------
   // TEST 7: Recurring Weaknesses with Supporting References
@@ -169,6 +173,10 @@ async function runPhase4Tests() {
   for (const weakness of diagnostics.recurringWeaknesses) {
     assert(Boolean(weakness.title && weakness.category && weakness.frequencyText), `Weakness has title, category, frequencyText: ${weakness.title}`);
     assert(weakness.supportingGamesCount >= 0, `Weakness has supporting games count: ${weakness.supportingGamesCount}`);
+    for (const evidence of weakness.evidences) assert(Boolean(evidence.gameId && evidence.fenBefore && evidence.playedSan), `Evidence points to a reviewed position: ${evidence.gameId}`);
+    if (weakness.id === 'weak-phase') assert(diagnostics.losses >= 3 && weakness.supportingGamesCount >= 2, 'Phase recurrence needs at least three losses and two losses in that phase');
+    if (weakness.id === 'weak-opening') assert(diagnostics.topLeakOpening.isLeak === true && weakness.evidences.length > 0, 'Opening recurrence requires the evidence-backed leak flag');
+    if (weakness.id === 'weak-late-game-errors') assert(!/clock trouble|fatigue|stress/i.test(weakness.description), 'Move number cannot imply clock pressure or fatigue');
   }
 
   // -------------------------------------------------------------
