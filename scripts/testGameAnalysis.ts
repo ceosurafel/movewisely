@@ -243,15 +243,25 @@ async function runPhase2Tests() {
     const isBlunder = analyzed.evalLossCp >= 200 || analyzed.judgment === 'blunder';
     const principalVariationMatchesBestMove =
       analyzed.pvs.length > 0 && analyzed.pvs[0].pvMoves[0] === analyzed.bestMoveUci;
+    const afterPvStartsAtPlayedPosition = (() => {
+      const firstReply = analyzed.pvsAfter?.[0]?.pvMoves?.[0];
+      if (!firstReply) return false;
+      try {
+        gameAnalysisService.getFenAfterUciMove(move.fenAfter, firstReply);
+        return true;
+      } catch {
+        return false;
+      }
+    })();
 
     // Verify resulting board state from engine alternative move (Q on f7 delivering checkmate: pppp1Qpp)
     const isFenAfterBestValid = analyzed.fenAfterBestMove.includes('pppp1Qpp');
 
-    if (foundMate && isBlunder && isFenAfterBestValid && principalVariationMatchesBestMove) {
-      console.log(`PASSED (Best move: ${analyzed.bestMoveSan} [${analyzed.bestMoveUci}], Eval loss: ${analyzed.evalLossCp} cp; PV root verified)`);
+    if (foundMate && isBlunder && isFenAfterBestValid && principalVariationMatchesBestMove && afterPvStartsAtPlayedPosition) {
+      console.log(`PASSED (Best move: ${analyzed.bestMoveSan} [${analyzed.bestMoveUci}], Eval loss: ${analyzed.evalLossCp} cp; before-PV root and after-PV legal reply verified)`);
       passed++;
     } else {
-      throw new Error(`Expected best move/PV f3f7 and blunder judgment, got best=${analyzed.bestMoveUci}, PV root=${analyzed.pvs[0]?.pvMoves[0]}, loss=${analyzed.evalLossCp}`);
+      throw new Error(`Expected best move/PV f3f7 and legal after-position line, got best=${analyzed.bestMoveUci}, before-PV root=${analyzed.pvs[0]?.pvMoves[0]}, after-PV root=${analyzed.pvsAfter?.[0]?.pvMoves[0]}, loss=${analyzed.evalLossCp}`);
     }
   } catch (err) {
     console.log('FAILED');
