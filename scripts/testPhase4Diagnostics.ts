@@ -163,7 +163,12 @@ async function runPhase4Tests() {
   assert(topOpening.exitEvaluationSampleSize >= 0 && topOpening.exitEvaluationSampleSize <= topOpening.sampleSize, 'Exit-evaluation sample is bounded by opening game sample');
   assert(topOpening.exitEvaluationSampleSize === 0 ? topOpening.averageExitEvalCp === null : typeof topOpening.averageExitEvalCp === 'number', 'Missing exit positions are null, not fabricated equal evaluations');
   assert(topOpening.scorePct >= 0 && topOpening.scorePct <= 100, `Opening score is valid percentage: ${topOpening.scorePct}%`);
-  assert(diagnostics.openings.every(opening => !opening.isLeak || (opening.sampleSize >= 3 && opening.scorePct <= 40 && opening.evidences.length > 0)), 'Opening leak requires 3+ games, low score, and linked engine-reviewed evidence');
+  assert(diagnostics.openings.every(opening => !opening.isLeak || (
+    opening.sampleSize >= 3 &&
+    opening.scorePct <= 40 &&
+    opening.evidences.length > 0 &&
+    new Set(opening.evidences.map(e => e.gameId)).size >= 2
+  )), 'Opening leak requires 3+ games, low score, and opening-error evidence in at least 2 distinct games');
 
   // -------------------------------------------------------------
   // TEST 7: Recurring Weaknesses with Supporting References
@@ -172,11 +177,22 @@ async function runPhase4Tests() {
   assert(Array.isArray(diagnostics.recurringWeaknesses), 'Recurring weaknesses is an array');
   for (const weakness of diagnostics.recurringWeaknesses) {
     assert(Boolean(weakness.title && weakness.category && weakness.frequencyText), `Weakness has title, category, frequencyText: ${weakness.title}`);
-    assert(weakness.supportingGamesCount >= 0, `Weakness has supporting games count: ${weakness.supportingGamesCount}`);
-    for (const evidence of weakness.evidences) assert(Boolean(evidence.gameId && evidence.fenBefore && evidence.playedSan), `Evidence points to a reviewed position: ${evidence.gameId}`);
-    if (weakness.id === 'weak-phase') assert(diagnostics.losses >= 3 && weakness.supportingGamesCount >= 2, 'Phase recurrence needs at least three losses and two losses in that phase');
-    if (weakness.id === 'weak-opening') assert(diagnostics.topLeakOpening.isLeak === true && weakness.evidences.length > 0, 'Opening recurrence requires the evidence-backed leak flag');
+    assert(weakness.supportingGamesCount >= 2, `Recurring weakness has evidence from at least 2 distinct games: ${weakness.supportingGamesCount}`);
+    assert(Number.isInteger(weakness.sampleGamesCount) && weakness.sampleGamesCount >= weakness.supportingGamesCount, `Evidence denominator covers supporting games: ${weakness.supportingGamesCount}/${weakness.sampleGamesCount}`);
+    assert(weakness.supportingMovesCount === weakness.evidences.length, `Move evidence count matches linked positions: ${weakness.supportingMovesCount}`);
+    assert(weakness.supportingGameRatePct === Math.round((weakness.supportingGamesCount / Math.max(1, weakness.sampleGamesCount)) * 100), 'Supporting-game coverage matches the explicit denominator');
+    assert(weakness.minimumSupportingGamesRequired >= 2 && Boolean(weakness.evidenceRule), 'Recurrence threshold and rule are exposed');
+    assert(new Set(weakness.evidences.map(e => e.gameId)).size === weakness.supportingGamesCount, 'Supporting-game count matches distinct evidence game IDs');
+    for (const evidence of weakness.evidences) assert(Boolean(evidence.gameId && evidence.fenBefore && evidence.playedSan && evidence.bestMoveSan), `Evidence points to a reviewed position: ${evidence.gameId}`);
+    if (weakness.id === 'weak-phase') {
+      assert(diagnostics.losses >= 3 && weakness.sampleGamesCount === diagnostics.losses, 'Phase recurrence denominator is completed losses and requires at least 3');
+      assert(weakness.supportingGamesCount >= 2, 'Phase recurrence needs engine evidence from at least 2 distinct loss games');
+    }
+    if (weakness.id === 'weak-opening') {
+      assert(diagnostics.topLeakOpening.isLeak === true && weakness.supportingGamesCount >= 2, 'Opening recurrence requires evidence-backed opening leak in at least 2 games');
+    }
     if (weakness.id === 'weak-late-game-errors') assert(/Move number alone cannot establish clock trouble or calculation fatigue/i.test(weakness.description), 'Late-game finding explicitly disclaims unsupported clock/fatigue inference');
+    if (weakness.id === 'weak-endgame-conversion') assert(/Move number alone does not confirm a formal endgame/i.test(weakness.description), 'Move 28+ is not falsely treated as proof of a formal endgame');
   }
 
   // -------------------------------------------------------------
