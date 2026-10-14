@@ -78,11 +78,13 @@ Only successfully completed games are eligible for cross-game diagnostics. The s
 
 ## Evidence thresholds for player diagnostics
 
-- Recurring phase-loss concentration requires at least **3 completed losses**; phase counts sum to the loss denominator, and attached positions come from games attributed to that phase.
-- A recurring opening leak requires at least **3 completed games**, a score of 40% or below, and linked engine-reviewed opening-error evidence. A poor result alone is an outcome snapshot, not proof of an opening-theory cause.
+- Recurring phase-loss concentration requires at least **3 completed losses**, at least **2 losses attributed to the phase bucket**, at least 40% concentration, and linked engine-reviewed error positions from at least **2 distinct loss games**. Phase counts sum to the completed-loss denominator.
+- A recurring opening leak requires at least **3 completed games for the opening**, a score of 40% or below, and engine-reviewed opening-error positions in at least **2 distinct games**. A poor result or one isolated error is not proof of a recurring opening-theory cause.
+- Each emitted recurring weakness records its eligible sample denominator, distinct supporting-game count, evidence-position count, supporting-game rate, minimum recurrence threshold, and a human-readable evidence rule. Every support count is derived from the linked evidence list rather than the three-position preview.
 - Opening-exit evaluation includes the number of games with a reviewed exit-window position. If no position was reviewed, the value is **unavailable (null)**, not 0 cp.
-- Tactical recurrence uses full evidence, not only the three-item display preview. Repeated findings require evidence across separate games; one move can have multiple motifs.
-- Move number is not clock telemetry. Errors after move 35 may be called late-game errors, but the report must not infer time pressure or fatigue without clock data. An endgame conversion claim requires an engine-reviewed mistake/blunder; the result alone is not proof.
+- Phase names currently use a move-number heuristic: moves 1–12 are Opening, 13–29 Middlegame, and move 30 onward is labelled Endgame for compatibility. This is not a board-material phase classifier. Move-28+ advantage slips are described as late-game signals, not proof of a formal endgame state.
+- Tactical recurrence uses full evidence, not only the three-item display preview. Repeated findings require evidence across separate games; one move can have multiple motifs. A large evaluation drop by itself is not a verified fork, pin, hanging piece, or missed mate.
+- Move number is not clock telemetry. Errors after move 35 may be called late-game errors, but the report must not infer time pressure or fatigue without clock data.
 - Small samples are descriptive and do not establish causality or predict rating change.
 
 ## Versioning and calibration
