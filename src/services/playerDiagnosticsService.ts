@@ -419,7 +419,19 @@ export class PlayerDiagnosticsService {
 
       const phaseLossCount = lossGamesByPhase[weakestPhase === 'Opening' ? 'opening' : weakestPhase === 'Middlegame' ? 'middlegame' : 'endgame'];
       const phaseEvidenceCount = phaseEvidences[weakestPhase === 'Opening' ? 'opening' : weakestPhase === 'Middlegame' ? 'middlegame' : 'endgame'].length;
-      phaseExplanation = weakestPhase + ' accounted for ' + weakestPhaseLossPct + '% (' + phaseLossCount + '/' + actualLosses + ') of recorded defeats across ' + totalGames + ' completed games. ' + phaseEvidenceCount + ' qualifying position(s) from those losses are attached as evidence.';
+      const phaseBucketRange =
+        weakestPhase === 'Opening'
+          ? 'moves 1–12'
+          : weakestPhase === 'Middlegame'
+          ? 'moves 13–29'
+          : 'move 30+';
+      phaseExplanation =
+        weakestPhase +
+        ' move-number bucket (' + phaseBucketRange + ') accounted for ' +
+        weakestPhaseLossPct + '% (' + phaseLossCount + '/' + actualLosses +
+        ') of recorded defeats across ' + totalGames +
+        ' completed games. ' + phaseEvidenceCount +
+        ' qualifying position(s) from those losses are attached as evidence. These buckets are heuristic and are not a board-material phase classifier.';
     } else {
       // Zero losses recorded! Phase-of-loss statistics are unavailable / not applicable.
       // Never manufacture an endgame loss percentage of 100%.
@@ -1391,7 +1403,7 @@ export class PlayerDiagnosticsService {
           ? `${phases.weakestPhase} Phase Loss Distribution`
           : `${phases.weakestPhase} Move Errors (Insufficient Loss Sample)`,
         description: phases.lossGamesSampleSize >= 3 && phases.isLossDataAvailable
-          ? `${phases.lossGamesByPhase[phases.weakestPhase === 'Opening' ? 'opening' : phases.weakestPhase === 'Endgame' ? 'endgame' : 'middlegame']} of ${phases.lossGamesSampleSize} recorded defeats (${phases.weakestPhaseLossPct}%) were attributed to the ${phases.weakestPhase.toLowerCase()}. This is descriptive, not proof of cause.`
+          ? `${phases.lossGamesByPhase[phases.weakestPhase === 'Opening' ? 'opening' : phases.weakestPhase === 'Endgame' ? 'endgame' : 'middlegame']} of ${phases.lossGamesSampleSize} recorded defeats (${phases.weakestPhaseLossPct}%) were attributed to the ${phases.weakestPhase.toLowerCase()} move-number bucket (${phases.weakestPhase === 'Opening' ? 'moves 1–12' : phases.weakestPhase === 'Middlegame' ? 'moves 13–29' : 'move 30+'}). These heuristic buckets are not board-material phase classifications and are descriptive, not proof of cause.`
           : `Only ${phases.lossGamesSampleSize} recorded loss/losses are available. At least 3 are required before interpreting a phase as a recurring loss concentration.`,
         userMetric: phases.lossGamesSampleSize >= 3 && phases.isLossDataAvailable
           ? `${phases.weakestPhaseLossPct}% of ${phases.lossGamesSampleSize} losses`
