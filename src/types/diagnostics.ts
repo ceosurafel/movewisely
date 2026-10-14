@@ -40,6 +40,8 @@ export interface VerifiedTacticalPattern {
   averageEvalLossCp: number;
   severity: 'critical' | 'moderate' | 'minor';
   sampleEvidences: DiagnosticEvidence[];
+  /** Full position evidence for aggregation; sampleEvidences is only a compact preview. */
+  evidences?: DiagnosticEvidence[];
   remediationAdvice: string;
 }
 
@@ -50,11 +52,13 @@ export interface VerifiedOpeningStat {
   openingName: string;
   eco: string;
   sampleSize: number;
+  /** Games with an engine-reviewed move in the opening-exit window. */
+  exitEvaluationSampleSize: number;
   wins: number;
   losses: number;
   draws: number;
   scorePct: number;
-  averageExitEvalCp: number; // Player advantage on opening exit (moves 10-12)
+  averageExitEvalCp: number | null; // null means no reviewed exit-window position, not a 0 cp evaluation
   blundersConceded: number;
   lossRatePct: number;
   isLeak: boolean;
@@ -88,6 +92,10 @@ export interface VerifiedPhaseBreakdown {
   endgameErrorsCount: number;
   weakestPhase: 'Opening' | 'Middlegame' | 'Endgame';
   weakestPhaseLossPct: number;
+  /** Completed losses used as the phase-percentage denominator. */
+  lossGamesSampleSize: number;
+  /** Exact completed-loss counts attributed to each phase. */
+  lossGamesByPhase: { opening: number; middlegame: number; endgame: number };
   explanation: string;
   isLossDataAvailable?: boolean;
   phaseEvidences: {
@@ -174,7 +182,10 @@ export interface PlayerDiagnosticsResult {
     gamesCount: number;
     scorePct: number;
     advice: string;
-    averageExitEvalCp: number;
+    averageExitEvalCp: number | null;
+    exitEvaluationSampleSize?: number;
+    isLeak?: boolean;
+    evidences?: DiagnosticEvidence[];
   };
 
   // Recurring Weaknesses

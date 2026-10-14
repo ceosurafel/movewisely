@@ -76,6 +76,15 @@ Annotated PGN export attaches a MoveWisely comment only to moves that have recor
 
 Only successfully completed games are eligible for cross-game diagnostics. The service stores an overall arithmetic mean and a separate non-book move mean. Interpret both as MoveWisely internal metrics. Empty input returns zero counts and zero placeholders, which must be interpreted together with the analysis status; it does not mean that a player scored 0%.
 
+## Evidence thresholds for player diagnostics
+
+- Recurring phase-loss concentration requires at least **3 completed losses**; phase counts sum to the loss denominator, and attached positions come from games attributed to that phase.
+- A recurring opening leak requires at least **3 completed games**, a score of 40% or below, and linked engine-reviewed opening-error evidence. A poor result alone is an outcome snapshot, not proof of an opening-theory cause.
+- Opening-exit evaluation includes the number of games with a reviewed exit-window position. If no position was reviewed, the value is **unavailable (null)**, not 0 cp.
+- Tactical recurrence uses full evidence, not only the three-item display preview. Repeated findings require evidence across separate games; one move can have multiple motifs.
+- Move number is not clock telemetry. Errors after move 35 may be called late-game errors, but the report must not infer time pressure or fatigue without clock data. An endgame conversion claim requires an engine-reviewed mistake/blunder; the result alone is not proof.
+- Small samples are descriptive and do not establish causality or predict rating change.
+
 ## Versioning and calibration
 
 Current code version: `MoveWisely Accuracy V1.1 (Experimental Score Proxy; Uncalibrated)`.
