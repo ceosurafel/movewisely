@@ -419,7 +419,19 @@ export class PlayerDiagnosticsService {
 
       const phaseLossCount = lossGamesByPhase[weakestPhase === 'Opening' ? 'opening' : weakestPhase === 'Middlegame' ? 'middlegame' : 'endgame'];
       const phaseEvidenceCount = phaseEvidences[weakestPhase === 'Opening' ? 'opening' : weakestPhase === 'Middlegame' ? 'middlegame' : 'endgame'].length;
-      phaseExplanation = weakestPhase + ' accounted for ' + weakestPhaseLossPct + '% (' + phaseLossCount + '/' + actualLosses + ') of recorded defeats across ' + totalGames + ' completed games. ' + phaseEvidenceCount + ' qualifying position(s) from those losses are attached as evidence.';
+      const phaseBucketRange =
+        weakestPhase === 'Opening'
+          ? 'moves 1–12'
+          : weakestPhase === 'Middlegame'
+          ? 'moves 13–29'
+          : 'move 30+';
+      phaseExplanation =
+        weakestPhase +
+        ' move-number bucket (' + phaseBucketRange + ') accounted for ' +
+        weakestPhaseLossPct + '% (' + phaseLossCount + '/' + actualLosses +
+        ') of recorded defeats across ' + totalGames +
+        ' completed games. ' + phaseEvidenceCount +
+        ' qualifying position(s) from those losses are attached as evidence. These buckets are heuristic and are not a board-material phase classifier.';
     } else {
       // Zero losses recorded! Phase-of-loss statistics are unavailable / not applicable.
       // Never manufacture an endgame loss percentage of 100%.
@@ -500,9 +512,11 @@ export class PlayerDiagnosticsService {
           isLeak: topLeakCandidate.isLeak,
           evidences: topLeakCandidate.evidences,
           advice:
-            topLeakCandidate.scorePct <= 35
-              ? `Sub-optimal ${topLeakCandidate.scorePct}% score in ${topLeakCandidate.openingName}. Study book moves 3–7.`
-              : `Focus on rapid piece development and central coordination in early turns of ${topLeakCandidate.openingName}.`,
+            topLeakCandidate.isLeak && topLeakCandidate.scorePct <= 35
+              ? `Review the ${topLeakCandidate.evidences.length} engine-reviewed opening-error position(s) in ${topLeakCandidate.openingName} before changing your repertoire.`
+              : topLeakCandidate.isLeak
+              ? `Use the linked engine-reviewed positions in ${topLeakCandidate.openingName} to identify which opening decisions need practice.`
+              : `No recurring opening weakness is confirmed; keep collecting games and review any linked engine-evaluated positions.`,
         }
       : {
           name: 'None',
@@ -1053,7 +1067,13 @@ export class PlayerDiagnosticsService {
         }
       }
 
-      const isLeak = sampleSize >= 3 && scorePct <= 40 && evidences.length > 0 && name !== 'Unknown Opening' && name !== 'None';
+      const evidenceGameCount = new Set(evidences.map(e => e.gameId)).size;
+      const isLeak =
+        sampleSize >= 3 &&
+        scorePct <= 40 &&
+        evidenceGameCount >= 2 &&
+        name !== 'Unknown Opening' &&
+        name !== 'None';
 
       result.push({
         openingName: name,
@@ -1079,6 +1099,39 @@ export class PlayerDiagnosticsService {
 
   /**
    * Identifies recurring player weaknesses supported by concrete game references.
+   */
+  private summarizeWeaknessEvidence(
+    evidences: DiagnosticEvidence[],
+    sampleGamesCount: number,
+    minimumSupportingGamesRequired: number,
+    evidenceRule: string
+  ): Pick<
+    VerifiedRecurringWeakness,
+    | 'sampleGamesCount'
+    | 'supportingGamesCount'
+    | 'supportingMovesCount'
+    | 'supportingGameRatePct'
+    | 'minimumSupportingGamesRequired'
+    | 'evidenceRule'
+  > {
+    const denominator = Number.isFinite(sampleGamesCount)
+      ? Math.max(0, Math.floor(sampleGamesCount))
+      : 0;
+    const supportingGamesCount = new Set(evidences.map(e => e.gameId)).size;
+    return {
+      sampleGamesCount: denominator,
+      supportingGamesCount,
+      supportingMovesCount: evidences.length,
+      supportingGameRatePct:
+        denominator > 0 ? Math.round((supportingGamesCount / denominator) * 100) : 0,
+      minimumSupportingGamesRequired,
+      evidenceRule,
+    };
+  }
+
+  /**
+   * Identifies recurring player weaknesses only when the named recurrence rule
+   * is met by distinct, completed, engine-reviewed game evidence.
    */
   private extractRecurringWeaknesses(ctx: {
     totalGames: number;
@@ -1109,80 +1162,131 @@ export class PlayerDiagnosticsService {
 
     const list: VerifiedRecurringWeakness[] = [];
 
-    // Weakness 1: Only call blunders recurring when actual engine-graded blunders span multiple games.
+    // Recurring blunders must exceed the internal reference and appear in 2+ games.
     const blunderEvidences = allEvidences.filter(e => e.grade === 'blunder');
     const blunderGameCount = new Set(blunderEvidences.map(e => e.gameId)).size;
     if (blundersPerGame > targetBlunders && blunderGameCount >= 2) {
-      const evidences = blunderEvidences;
       list.push({
         id: 'weak-blunders',
         category: 'blunders',
-        title: 'Unforced Material Drops',
-        description: `Conceding ${blundersPerGame} blunders per game (${totalGames} games analyzed). Opponents convert these opportunities with high precision.`,
-        frequencyText: `${blundersPerGame} blunders / game`,
+        title: 'Unforced Blunders',
+        description: `MoveWisely classified ${blunderEvidences.length} blunder(s) across ${blunderGameCount} of ${totalGames} completed games (${blundersPerGame} per game). This is a review signal under the experimental scoring rules, not a prediction of opponent conversion.`,
+        frequencyText: `${blunderEvidences.length} engine-reviewed blunders across ${blunderGameCount}/${totalGames} games`,
         measuredSeverity: blundersPerGame >= targetBlunders * 1.4 ? 'critical' : 'moderate',
-        supportingGamesCount: new Set(evidences.map(e => e.gameId)).size,
-        evidences,
+        ...this.summarizeWeaknessEvidence(
+          blunderEvidences,
+          totalGames,
+          2,
+          `At least 2 distinct completed games contain engine-graded blunders and the per-game rate exceeds the internal reference (${targetBlunders}).`
+        ),
+        evidences: blunderEvidences,
         recommendedDrillType: 'hanging_pieces',
       });
     }
 
-    // A recurring phase-loss concentration needs at least three losses and at least two in the phase.
-    const phaseKey = phases.weakestPhase === 'Opening' ? 'opening' : phases.weakestPhase === 'Endgame' ? 'endgame' : 'middlegame';
-    if (phases.isLossDataAvailable && phases.lossGamesSampleSize >= 3 && phases.lossGamesByPhase[phaseKey] >= 2 && phases.weakestPhaseLossPct >= 40) {
-      const phaseEvs =
-        phases.weakestPhase === 'Opening'
-          ? phases.phaseEvidences.opening
-          : phases.weakestPhase === 'Middlegame'
-          ? phases.phaseEvidences.middlegame
-          : phases.phaseEvidences.endgame;
+    // Phase-loss recurrence is only emitted when the losses and their linked positions agree.
+    const phaseKey =
+      phases.weakestPhase === 'Opening'
+        ? 'opening'
+        : phases.weakestPhase === 'Endgame'
+        ? 'endgame'
+        : 'middlegame';
+    const phaseEvs =
+      phases.weakestPhase === 'Opening'
+        ? phases.phaseEvidences.opening
+        : phases.weakestPhase === 'Middlegame'
+        ? phases.phaseEvidences.middlegame
+        : phases.phaseEvidences.endgame;
+    const phaseEvidenceGameCount = new Set(phaseEvs.map(e => e.gameId)).size;
+    const lossesInWeakestPhase = phases.lossGamesByPhase[phaseKey];
 
+    if (
+      phases.isLossDataAvailable &&
+      phases.lossGamesSampleSize >= 3 &&
+      lossesInWeakestPhase >= 2 &&
+      phases.weakestPhaseLossPct >= 40 &&
+      phaseEvidenceGameCount >= 2
+    ) {
       list.push({
         id: 'weak-phase',
         category: 'phases',
-        title: `${phases.weakestPhase} Phase Disconnect`,
-        description: `${phases.weakestPhaseLossPct}% of your defeats occurred in the ${phases.weakestPhase.toLowerCase()} phase.`,
-        frequencyText: `${phases.weakestPhaseLossPct}% of total losses`,
+        title: `${phases.weakestPhase} Phase Loss Concentration`,
+        description: `${lossesInWeakestPhase} of ${phases.lossGamesSampleSize} recorded defeats (${phases.weakestPhaseLossPct}%) were attributed to the ${phases.weakestPhase.toLowerCase()} move-number bucket. Linked engine-reviewed error positions are present in ${phaseEvidenceGameCount} distinct loss game(s); this is descriptive, not proof of cause.`,
+        frequencyText: `${lossesInWeakestPhase}/${phases.lossGamesSampleSize} losses; evidence in ${phaseEvidenceGameCount} games`,
         measuredSeverity: phases.weakestPhaseLossPct >= 50 ? 'critical' : 'moderate',
-        supportingGamesCount: new Set(phaseEvs.map(e => e.gameId)).size,
+        ...this.summarizeWeaknessEvidence(
+          phaseEvs,
+          phases.lossGamesSampleSize,
+          2,
+          `At least 3 completed losses, at least 2 assigned to this phase bucket, at least 40% loss concentration, and linked engine-reviewed positions in 2+ distinct loss games.`
+        ),
         evidences: phaseEvs,
         recommendedDrillType: phases.weakestPhase === 'Endgame' ? 'endgame_basics' : 'tactics',
       });
     }
 
-    // Weakness 3: Repertoire deficit
-    if (topLeakOpening?.isLeak === true && topLeakOpening.gamesCount >= 3 && topLeakOpening.name !== 'None' && topLeakOpening.name !== 'Unknown Opening' && topLeakOpening.evidences?.length > 0) {
+    // Opening results alone are not a repertoire diagnosis; the engine errors
+    // must appear in at least two separate games within a 3+ game opening sample.
+    const openingEvs: DiagnosticEvidence[] = Array.isArray(topLeakOpening?.evidences)
+      ? topLeakOpening.evidences
+      : [];
+    const openingEvidenceGameCount = new Set(openingEvs.map(e => e.gameId)).size;
+    if (
+      topLeakOpening?.isLeak === true &&
+      topLeakOpening.gamesCount >= 3 &&
+      topLeakOpening.name !== 'None' &&
+      topLeakOpening.name !== 'Unknown Opening' &&
+      openingEvidenceGameCount >= 2
+    ) {
       list.push({
         id: 'weak-opening',
         category: 'openings',
-        title: `Repertoire Leak in ${topLeakOpening.name}`,
-        description: `Scored ${topLeakOpening.scorePct}% across ${topLeakOpening.gamesCount} games with ${topLeakOpening.evidences.length} engine-reviewed opening-error position(s). Opening-exit evaluation was available for ${topLeakOpening.exitEvaluationSampleSize ?? 0} game(s).`,
-        frequencyText: `${topLeakOpening.scorePct}% over ${topLeakOpening.gamesCount} games; ${topLeakOpening.evidences.length} reviewed error positions`,
+        title: `Evidence-Backed Opening Errors: ${topLeakOpening.name}`,
+        description: `Scored ${topLeakOpening.scorePct}% across ${topLeakOpening.gamesCount} games; ${openingEvs.length} engine-reviewed opening-error position(s) came from ${openingEvidenceGameCount} distinct games. Exit evaluation was available in ${topLeakOpening.exitEvaluationSampleSize ?? 0} game(s).`,
+        frequencyText: `${topLeakOpening.scorePct}% over ${topLeakOpening.gamesCount} games; errors in ${openingEvidenceGameCount} games`,
         measuredSeverity: topLeakOpening.scorePct <= 30 ? 'critical' : 'moderate',
-        supportingGamesCount: topLeakOpening.gamesCount,
-        evidences: topLeakOpening.evidences || [],
+        ...this.summarizeWeaknessEvidence(
+          openingEvs,
+          topLeakOpening.gamesCount,
+          2,
+          `At least 3 games for this opening, score of 40% or lower, and engine-reviewed opening errors in at least 2 distinct games.`
+        ),
+        evidences: openingEvs,
         recommendedDrillType: 'opening_prep',
       });
     }
 
-    // Weakness 4: Endgame Conversion Slip
-    if (endgameConversionSlipCount && endgameConversionSlipCount >= 2 && endgameConversionEvidences && endgameConversionEvidences.length > 0) {
+    // Move 28+ is a late-game proxy, not proof of a formal endgame.
+    if (
+      endgameConversionSlipCount &&
+      endgameConversionSlipCount >= 2 &&
+      endgameConversionEvidences &&
+      new Set(endgameConversionEvidences.map(e => e.gameId)).size >= 2
+    ) {
       list.push({
         id: 'weak-endgame-conversion',
         category: 'phases',
-        title: 'Endgame Conversion Slip',
-        description: `Established a +1.5+ pawn advantage entering the endgame (move 28+) in ${endgameConversionSlipCount} game(s) but conceded decisive evaluation drops resulting in missed wins.`,
-        frequencyText: `${endgameConversionSlipCount} slipped conversion(s)`,
+        title: 'Late-Game Advantage Slip (Move 28+)',
+        description: `In ${endgameConversionSlipCount} game(s), evaluation was at least +1.5 pawn-equivalents for the player at move 28+ before a later engine-graded major drop; those games were not wins. Move number alone does not confirm a formal endgame or explain why the advantage was not converted.`,
+        frequencyText: `${endgameConversionSlipCount} late-game slips`,
         measuredSeverity: 'critical',
-        supportingGamesCount: endgameConversionSlipCount,
-        evidences: endgameConversionEvidences || [],
-        recommendedDrillType: 'endgame_basics',
+        ...this.summarizeWeaknessEvidence(
+          endgameConversionEvidences,
+          totalGames,
+          2,
+          'At least 2 distinct completed games show a player-perspective advantage of at least +150 cp at move 28+ followed by a major engine-reviewed evaluation drop and a non-win.'
+        ),
+        evidences: endgameConversionEvidences,
+        recommendedDrillType: 'tactics',
       });
     }
 
-    // Weakness 5: Tactical Blindspots (verified forks, pins, hanging pieces)
+    // Tactical recurrence is deduplicated to one occurrence per game/move and
+    // requires verified motif evidence across multiple games.
     const tacticalByMove = new Map<string, DiagnosticEvidence>();
-    for (const ev of tacticalPatterns.filter(p => p.theme === 'hanging_piece' || p.theme === 'fork' || p.theme === 'pin').flatMap(p => p.evidences ?? p.sampleEvidences)) {
+    for (const ev of tacticalPatterns
+      .filter(p => p.theme === 'hanging_piece' || p.theme === 'fork' || p.theme === 'pin')
+      .flatMap(p => p.evidences ?? p.sampleEvidences)) {
       const key = ev.gameId + ':' + ev.moveNumber;
       if (!tacticalByMove.has(key)) tacticalByMove.set(key, ev);
     }
@@ -1192,27 +1296,39 @@ export class PlayerDiagnosticsService {
       list.push({
         id: 'weak-tactics',
         category: 'tactics',
-        title: 'Tactical Blindspots & Piece Vulnerabilities',
-        description: `Verified tactical slips occurred across ${new Set(tacticalEvs.map(e => e.gameId)).size} game(s), conceding forks, pins, or undefended pieces.`,
-        frequencyText: `${tacticalEvs.length} verified tactical slips`,
+        title: 'Verified Tactical Blindspots',
+        description: `${tacticalEvs.length} position(s) with verified fork, pin, or undefended-piece motifs appeared in ${tacticalGameCount} of ${totalGames} completed games. A move can contain more than one motif; this list counts each game/move once.`,
+        frequencyText: `${tacticalEvs.length} unique game/move positions across ${tacticalGameCount} games`,
         measuredSeverity: tacticalEvs.length >= 3 ? 'critical' : 'moderate',
-        supportingGamesCount: new Set(tacticalEvs.map(e => e.gameId)).size,
+        ...this.summarizeWeaknessEvidence(
+          tacticalEvs,
+          totalGames,
+          2,
+          'At least 2 distinct completed games contain engine-reviewed positions with board/continuation-supported tactical motifs.'
+        ),
         evidences: tacticalEvs,
         recommendedDrillType: 'tactics',
       });
     }
 
-    // Weakness 6: Late-Game Time Trouble & Fatigue
-    if (timeTroubleEvidences && timeTroubleEvidences.length >= 2 && new Set(timeTroubleEvidences.map(e => e.gameId)).size >= 2) {
+    // Move 35+ is only a late-game move-number signal, not clock or fatigue telemetry.
+    const lateGameEvs = timeTroubleEvidences ?? [];
+    const lateGameGameCount = new Set(lateGameEvs.map(e => e.gameId)).size;
+    if (lateGameEvs.length >= 2 && lateGameGameCount >= 2) {
       list.push({
         id: 'weak-late-game-errors',
         category: 'blunders',
         title: 'Late-Game Mistakes (Move 35+)',
-        description: `Engine-graded mistakes/blunders occurred after move 35 in ${new Set(timeTroubleEvidences.map(e => e.gameId)).size} separate games. Move number alone cannot establish clock trouble or calculation fatigue.`,
-        frequencyText: `${timeTroubleEvidences.length} late-game errors`,
+        description: `Engine-graded mistakes/blunders occurred after move 35 in ${lateGameGameCount} of ${totalGames} completed games. Move number alone cannot establish clock trouble or calculation fatigue.`,
+        frequencyText: `${lateGameEvs.length} late-game errors across ${lateGameGameCount}/${totalGames} games`,
         measuredSeverity: 'moderate',
-        supportingGamesCount: new Set(timeTroubleEvidences.map(e => e.gameId)).size,
-        evidences: timeTroubleEvidences,
+        ...this.summarizeWeaknessEvidence(
+          lateGameEvs,
+          totalGames,
+          2,
+          'At least two engine-graded mistakes/blunders after move 35, with evidence in at least two distinct completed games; this does not establish time trouble.'
+        ),
+        evidences: lateGameEvs,
         recommendedDrillType: 'tactics',
       });
     }
@@ -1266,13 +1382,17 @@ export class PlayerDiagnosticsService {
         id: 'leak-blunders',
         category: 'blunders',
         title: 'Unforced Blunders & Tactical Drops',
-        description: `Across ${totalGames} games, ${blundersPerGame} blunders were detected per game. Target ${targetMilestone} players restrict this to ${targetBenchmark.expectedBlundersPerGame}.`,
+        description: `MoveWisely classified ${blundersPerGame} blunders per game across ${totalGames} completed games. The ${targetMilestone} comparison is an internal reference threshold, not an empirically calibrated standard.`,
         userMetric: `${blundersPerGame} / game`,
         userNumeric: blundersPerGame,
         targetMetric: `${targetBenchmark.expectedBlundersPerGame} / game`,
         targetNumeric: targetBenchmark.expectedBlundersPerGame,
         impactScore: (blundersPerGame / Math.max(0.1, targetBenchmark.expectedBlundersPerGame)) * 32,
-        severity: (blundersPerGame > targetBenchmark.expectedBlundersPerGame * 1.3 ? 'critical' : 'moderate') as 'critical' | 'moderate' | 'minor',
+        severity: (blundersPerGame > targetBenchmark.expectedBlundersPerGame * 1.3
+          ? 'critical'
+          : blundersPerGame > targetBenchmark.expectedBlundersPerGame
+          ? 'moderate'
+          : 'minor') as 'critical' | 'moderate' | 'minor',
         impact: 'This is a recurring pattern worth reviewing. Its effect on future rating depends on practice, opponents, time control, and other factors; no rating gain is predicted.',
         coachTip: `Before releasing any move, verify: "Is my destination square safe, and did I uncover an attack on my own pieces?"`,
       },
@@ -1283,7 +1403,7 @@ export class PlayerDiagnosticsService {
           ? `${phases.weakestPhase} Phase Loss Distribution`
           : `${phases.weakestPhase} Move Errors (Insufficient Loss Sample)`,
         description: phases.lossGamesSampleSize >= 3 && phases.isLossDataAvailable
-          ? `${phases.lossGamesByPhase[phases.weakestPhase === 'Opening' ? 'opening' : phases.weakestPhase === 'Endgame' ? 'endgame' : 'middlegame']} of ${phases.lossGamesSampleSize} recorded defeats (${phases.weakestPhaseLossPct}%) were attributed to the ${phases.weakestPhase.toLowerCase()}. This is descriptive, not proof of cause.`
+          ? `${phases.lossGamesByPhase[phases.weakestPhase === 'Opening' ? 'opening' : phases.weakestPhase === 'Endgame' ? 'endgame' : 'middlegame']} of ${phases.lossGamesSampleSize} recorded defeats (${phases.weakestPhaseLossPct}%) were attributed to the ${phases.weakestPhase.toLowerCase()} move-number bucket (${phases.weakestPhase === 'Opening' ? 'moves 1–12' : phases.weakestPhase === 'Middlegame' ? 'moves 13–29' : 'move 30+'}). These heuristic buckets are not board-material phase classifications and are descriptive, not proof of cause.`
           : `Only ${phases.lossGamesSampleSize} recorded loss/losses are available. At least 3 are required before interpreting a phase as a recurring loss concentration.`,
         userMetric: phases.lossGamesSampleSize >= 3 && phases.isLossDataAvailable
           ? `${phases.weakestPhaseLossPct}% of ${phases.lossGamesSampleSize} losses`
@@ -1305,7 +1425,7 @@ export class PlayerDiagnosticsService {
         description:
           (tacticalSummary.hangingPiecesLostTotal > 0 || tacticalSummary.forkPinVulnerabilities > 0 || tacticalSummary.missedFreePiecesTotal > 0)
             ? `Move-by-move engine scanning detected ${tacticalSummary.hangingPiecesLostTotal} undefended piece(s) left vulnerable, ${tacticalSummary.forkPinVulnerabilities} fork/pin vulnerability(ies), and ${tacticalSummary.missedFreePiecesTotal} missed free piece opportunity(ies).`
-            : `Tactical stability was maintained; evaluation swings were driven by positional decisions rather than dropped pieces.`,
+            : `No specific fork, pin, hanging-piece, or missed-free-piece motif was verified in the searched positions. That does not prove that no tactical mistakes occurred.`,
         userMetric: `${tacticalSummary.hangingPiecesLostTotal + tacticalSummary.forkPinVulnerabilities} tactical vulnerabilities`,
         userNumeric: tacticalSummary.hangingPiecesLostTotal + tacticalSummary.forkPinVulnerabilities,
         targetMetric: `< ${Math.round(targetBenchmark.expectedHangingPiecesPerGame * totalGames)} pieces`,
@@ -1355,16 +1475,16 @@ export class PlayerDiagnosticsService {
       candidates.push({
         id: 'leak-endgame-conversion',
         category: 'phases',
-        title: 'Endgame Advantage Conversion Slip',
-        description: `In ${endgameConversionSlipCount} game(s), you established an advantage of +1.5+ pawns entering the endgame (move 28+) but subsequently conceded evaluation drops resulting in missed wins.`,
+        title: 'Late-Game Advantage Slip (Move 28+)',
+        description: `In ${endgameConversionSlipCount} game(s), the engine showed an advantage of +1.5 pawn-equivalents at move 28+ before a later major evaluation drop; those games were not wins. Move number alone does not confirm a formal endgame or establish why the advantage was not converted.`,
         userMetric: `${endgameConversionSlipCount} slipped conversion(s)`,
         userNumeric: endgameConversionSlipCount,
-        targetMetric: '0 slipped conversions',
+        targetMetric: 'Review the linked positions',
         targetNumeric: 0,
         impactScore: endgameConversionSlipCount * 28,
         severity: 'critical',
-        impact: 'Converting decisive advantages in the endgame requires patient king centralization and pawn structure care.',
-        coachTip: 'When up material in the endgame, activate your king immediately and eliminate opponent counterplay before rushing pawn pushes.',
+        impact: 'These are late-game positions with an engine-evaluated advantage followed by a major drop; the result alone does not establish a conversion cause.',
+        coachTip: 'Replay the linked positions, compare the played move with the best-move candidate, and identify the concrete threat before generalizing the lesson.',
       });
     }
 
