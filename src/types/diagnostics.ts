@@ -75,7 +75,18 @@ export interface VerifiedRecurringWeakness {
   description: string;
   frequencyText: string;
   measuredSeverity: 'critical' | 'moderate' | 'minor';
+  /** Number of eligible games in the denominator for this specific finding. */
+  sampleGamesCount: number;
+  /** Distinct denominator games with at least one linked evidence position. */
   supportingGamesCount: number;
+  /** Number of engine-reviewed positions linked to this finding. */
+  supportingMovesCount: number;
+  /** Supporting-game coverage relative to sampleGamesCount (0–100). */
+  supportingGameRatePct: number;
+  /** Minimum distinct evidence-bearing games required by this finding's rule. */
+  minimumSupportingGamesRequired: number;
+  /** Human-readable rule explaining why this finding qualified as recurring. */
+  evidenceRule: string;
   evidences: DiagnosticEvidence[];
   recommendedDrillType: 'hanging_pieces' | 'tactics' | 'endgame_basics' | 'opening_prep';
 }
