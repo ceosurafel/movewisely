@@ -405,11 +405,12 @@ export class CoachingService {
     const playedTo = move.to as Square;
 
     // 1. Mating Threat / Forced Mate
+    // A mate score at the pre-move root only describes the engine's best line,
+    // not the position the player actually left behind. Only attach a mate motif
+    // when the played move checkmates or the validated after-move PV shows mate.
     if (
-      move.positionEvaluation.type === 'mate' ||
       move.isCheckmate ||
-      continuationLineSan.some(s => s.includes('#')) ||
-      (move.evalLossCp >= 1500 && move.expectedPointsLoss >= 0.75)
+      continuationLineSan.some(s => s.includes('#'))
     ) {
       themes.push({
         theme: 'mating_threat',
