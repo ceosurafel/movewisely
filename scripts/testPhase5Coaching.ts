@@ -105,7 +105,21 @@ async function runTests() {
       bestMoveFrom: 'd2',
       bestMoveTo: 'd4',
       fenAfterBestMove: 'r1bqk2r/pppp1ppp/2n2n2/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R b KQkq - 0 3',
+      // Before-move PV: best candidate starts at fenBefore.
       pvs: [
+        {
+          multipv: 1,
+          depth: 14,
+          score: { type: 'cp', value: 20, whiteRelativeValue: 20, formatted: '+0.2' },
+          pvMoves: ['d2d4', 'f6e4'],
+          pvSan: ['d4', 'Nxe4'],
+          nodes: 40000,
+          nps: 100000,
+          timeMs: 50,
+        },
+      ],
+      // After-move PV: Black's legal refutation starts at fenAfter.
+      pvsAfter: [
         {
           multipv: 1,
           depth: 14,
@@ -136,7 +150,7 @@ async function runTests() {
     assert(explanation.actualMove.san === 'Nxe5', 'Actual move SAN should be Nxe5');
     assert(explanation.recommendedMove.san === 'd4', 'Recommended move should be d4');
     assert(explanation.evaluationChange.evalLossCp === 300, 'Eval loss should be 300 cp');
-    assert(explanation.refutation.continuationLineSan.length > 0, 'Refutation line should be present');
+    assert(explanation.refutation.continuationLineSan[0] === 'Nxe5', 'Refutation PV must start from the position after the played move, not the before-move best-move line');
     assert(explanation.practicalLesson.includes('Scan') || explanation.practicalLesson.includes('undefended'), 'Practical lesson should focus on board scan/undefended pieces');
     assert(explanation.coachSpeech.includes('Nxe5') && explanation.coachSpeech.includes('d4'), 'Coach speech should include both moves');
 
