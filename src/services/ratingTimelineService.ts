@@ -33,6 +33,8 @@ export function estimateRatingTimeline(
   const observations: DatedRating[] = [];
 
   for (const game of games) {
+    // Demo fixtures can look like rating histories; never use synthetic data for a real ETA.
+    if (game.isSynthetic) continue;
     const rawRating = game.userColor === 'white' ? game.white?.rating : game.black?.rating;
     const date = typeof game.date === 'string' ? game.date.slice(0, 10) : '';
     const rating = typeof rawRating === 'number' && Number.isFinite(rawRating) ? rawRating : NaN;

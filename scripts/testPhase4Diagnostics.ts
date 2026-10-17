@@ -229,7 +229,7 @@ async function runPhase4Tests() {
       date,
       pgn: '1. e4 e5 2. Nf3 Nc6',
       movesCount: 4,
-    };
+    } satisfies GameRecord;
   });
   const timelineWithHistory = estimateRatingTimeline(trendGames, 1575, 1700);
   assert(timelineWithHistory.status === 'estimate-available', 'A dated positive trend meeting minimum sample requirements produces a caveated ETA range');
@@ -241,6 +241,8 @@ async function runPhase4Tests() {
   );
   const timelineWithoutTrend = estimateRatingTimeline(trendGames.slice(0, 5), 1520, 1700);
   assert(timelineWithoutTrend.status === 'insufficient-history', 'Sparse dated ratings refuse timeline extrapolation');
+  const demoOnlyTimeline = estimateRatingTimeline(trendGames.map(game => ({ ...game, isSynthetic: true })), 1575, 1700);
+  assert(demoOnlyTimeline.status === 'insufficient-history' && demoOnlyTimeline.sampleGamesCount === 0, 'Synthetic/demo games are never used to estimate rating progress');
 
   // -------------------------------------------------------------
   // TEST 9: Insufficient Data & Corrupt Game Exclusion
