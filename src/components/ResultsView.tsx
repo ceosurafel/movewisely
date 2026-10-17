@@ -96,6 +96,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [showGamesList, setShowGamesList] = useState(false);
   const [tasks, setTasks] = useState<ActionPlanTask[]>(analysis.actionPlan.tasks);
   const [planStarted, setPlanStarted] = useState(false);
+  const ratingTimeline = analysis.actionPlan.ratingTimeline;
   const tasksForBudget = useMemo(() => {
     const maxTasks = dailyPracticeBudget === '5–15 min' ? 1 : dailyPracticeBudget === '15–30 min' ? 2 : tasks.length;
     return tasks.slice(0, maxTasks);
@@ -1022,8 +1023,47 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     </div>
                   </div>
                   <p className="text-xs leading-relaxed text-slate-400">
-                    {goalStyle === 'beyond' ? 'Your goal is to reach this milestone and continue beyond it. ' : ''}The difference is a planning target only. This report cannot predict how many rating points you will gain or how long improvement will take.
+                    {goalStyle === 'beyond' ? 'Your goal is to reach this milestone and continue beyond it. ' : ''}
+                    {ratingTimeline?.status === 'estimate-available'
+                      ? 'The range below is a rough extrapolation from dated game-rating history, not a promise or prediction. Training adherence and future opponents are not modeled.'
+                      : ratingTimeline?.explanation ?? 'A rating arrival date is not estimated from a single-game-analysis snapshot. Use the training cycle to measure progress before drawing conclusions.'}
                   </p>
+                </div>
+
+                {/* Four-week training cycle: training horizon, not a promised rating arrival date. */}
+                <div className="p-4 rounded-2xl bg-[#0b1419] border border-teal-900/60 mb-6 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="font-bold text-white text-sm">Four-week training cycle</h3>
+                    <span className="text-[10px] font-mono text-teal-300 uppercase tracking-wide">Reassess in week 4</span>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    <div className="rounded-xl bg-black/25 p-3">
+                      <p className="text-xs font-bold text-teal-200">Week 1 · Understand</p>
+                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Replay the evidence-linked positions for your top priority and write what you missed before viewing the engine line.</p>
+                    </div>
+                    <div className="rounded-xl bg-black/25 p-3">
+                      <p className="text-xs font-bold text-teal-200">Week 2 · Train</p>
+                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Repeat the matching drill on 4–5 study days. Track whether you can explain the threat and best response without hints.</p>
+                    </div>
+                    <div className="rounded-xl bg-black/25 p-3">
+                      <p className="text-xs font-bold text-teal-200">Week 3 · Transfer</p>
+                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Apply the routine in rated games, annotate critical moments first, then compare against engine analysis.</p>
+                    </div>
+                    <div className="rounded-xl bg-black/25 p-3">
+                      <p className="text-xs font-bold text-teal-200">Week 4 · Measure</p>
+                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Re-run the checkup after 15–20 additional completed games and compare the same per-game errors. Keep or change the plan based on new evidence.</p>
+                    </div>
+                  </div>
+                  <div className="border-t border-teal-950 pt-3">
+                    <p className="text-xs font-bold text-white">Rating milestone ETA</p>
+                    <p className="text-[11px] leading-relaxed text-slate-400 mt-1">
+                      {ratingTimeline?.status === 'estimate-available' && ratingTimeline.estimateRangeWeeks
+                        ? `At the recent observed rating pace, the broad extrapolation is ${ratingTimeline.estimateRangeWeeks.min}–${ratingTimeline.estimateRangeWeeks.max} weeks. This is a scenario range, not a guarantee; reassess after the training block.`
+                        : ratingTimeline?.status === 'goal-reached'
+                        ? ratingTimeline.explanation
+                        : ratingTimeline?.explanation ?? 'Not enough dated historical rating data is available to estimate an arrival time responsibly.'}
+                    </p>
+                  </div>
                 </div>
 
                 {/* "Session one" Action Tasks Checklist */}
@@ -1039,37 +1079,66 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   </p>
 
                   {tasksForBudget.map(task => (
-                    <label
+                    <div
                       key={task.id}
-                      htmlFor={`roadmap-task-${task.id}`}
-                      className={`p-3.5 rounded-xl border transition-colors cursor-pointer flex items-start gap-3 ${
+                      className={`p-3.5 rounded-xl border transition-colors ${
                         task.completed
                           ? 'bg-emerald-950/20 border-emerald-800/40 text-slate-400'
                           : 'bg-[#0a1419] border-teal-900/60 text-white'
                       }`}
                     >
-                      <input
-                        id={`roadmap-task-${task.id}`}
-                        type="checkbox"
-                        checked={task.completed}
-                        onChange={() => toggleTask(task.id)}
-                        aria-label={`Mark ${task.title} complete`}
-                        className="mt-1 h-4 w-4 shrink-0 rounded border-slate-700 text-teal-500 focus:ring-teal-400 cursor-pointer"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-1">
-                          <h5 className={`text-xs font-bold ${task.completed ? 'line-through text-slate-400' : 'text-white'}`}>
-                            {task.title}
-                          </h5>
-                          <span className="text-[10px] text-teal-400 font-mono shrink-0">
-                            {task.duration}
-                          </span>
+                      <label htmlFor={`roadmap-task-${task.id}`} className="cursor-pointer flex items-start gap-3">
+                        <input
+                          id={`roadmap-task-${task.id}`}
+                          type="checkbox"
+                          checked={task.completed}
+                          onChange={() => toggleTask(task.id)}
+                          aria-label={`Mark ${task.title} complete`}
+                          className="mt-1 h-4 w-4 shrink-0 rounded border-slate-700 text-teal-500 focus:ring-teal-400 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <h5 className={`text-xs font-bold ${task.completed ? 'line-through text-slate-400' : 'text-white'}`}>
+                              {task.title}
+                            </h5>
+                            <span className="text-[10px] text-teal-400 font-mono shrink-0">
+                              {task.duration}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                            {task.description}
+                          </p>
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            Schedule: {task.frequency}
+                          </p>
+                          {task.evidenceSummary && (
+                            <p className="text-[10px] leading-relaxed text-teal-200/80 mt-2 border-l-2 border-teal-800 pl-2">
+                              {task.evidenceSummary}
+                            </p>
+                          )}
+                          {typeof task.evidencePositionCount === 'number' && task.evidencePositionCount > 0 && (
+                            <p className="text-[10px] text-slate-500 mt-1">
+                              Evidence ledger: {task.evidencePositionCount} position(s), {task.evidenceGameCount ?? 0} source game(s). See the analyzed-games ledger below to inspect source games.
+                            </p>
+                          )}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-                          {task.description}
-                        </p>
-                      </div>
-                    </label>
+                      </label>
+                      {task.evidenceGameUrls && task.evidenceGameUrls.length > 0 && (
+                        <div className="flex flex-wrap gap-3 mt-2 pl-7 text-[10px]">
+                          {task.evidenceGameUrls.map((url, index) => (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-teal-300 underline underline-offset-2 hover:text-teal-100"
+                            >
+                              Source game {index + 1} ↗
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
 

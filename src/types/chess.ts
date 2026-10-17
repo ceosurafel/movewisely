@@ -71,6 +71,19 @@ export interface SpotlightMove {
 
 export type AnalysisStatus = 'completed' | 'partial' | 'failed' | 'cancelled';
 
+export interface RatingTimelineEstimate {
+  /** Whether the dated per-game rating sample supports a rough extrapolation. */
+  status: 'estimate-available' | 'insufficient-history' | 'no-positive-trend' | 'goal-reached';
+  estimatedWeeks: number | null;
+  estimateRangeWeeks: { min: number; max: number } | null;
+  sampleGamesCount: number;
+  distinctDatesCount: number;
+  observedDays: number;
+  historicalRatingChange: number | null;
+  weeklyRatingChange: number | null;
+  explanation: string;
+}
+
 export interface ActionPlanTask {
   id: string;
   title: string;
@@ -79,6 +92,14 @@ export interface ActionPlanTask {
   description: string;
   drillType: 'hanging_pieces' | 'tactics' | 'endgame_basics' | 'opening_prep';
   completed: boolean;
+  /** Primary evidence-backed tasks are listed before maintenance tasks. */
+  priority?: 'primary' | 'secondary' | 'maintenance';
+  sourceWeaknessId?: string;
+  evidenceGameCount?: number;
+  evidencePositionCount?: number;
+  evidenceSummary?: string;
+  /** A small set of real source-game URLs supporting this specific drill. */
+  evidenceGameUrls?: string[];
 }
 
 export interface CheckupAnalysis {
@@ -154,6 +175,8 @@ export interface CheckupAnalysis {
     estimatedWeeks: number | null;
     coreFocus: string;
     tasks: ActionPlanTask[];
+    /** Historical-rate extrapolation, when the observed sample is adequate. */
+    ratingTimeline?: RatingTimelineEstimate;
   };
   diagnostics?: any;
   games: GameRecord[];

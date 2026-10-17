@@ -88,3 +88,6 @@ See [SECURITY.md](SECURITY.md) for reporting guidance and [THIRD_PARTY_NOTICES.m
 ## License
 
 No license is declared here. Unless the repository owner adds a license, do not assume that the source code is licensed for reuse, redistribution, or commercial use.
+
+
+The personalized plan ranks drills by verified recurring weaknesses, displays the games/positions and recurrence rules behind each primary task, and provides a four-week practice/reassessment cycle. A rating ETA is only shown when the dated per-game ratings meet the documented minimum-history checks; estimates are broad extrapolations, never guarantees.

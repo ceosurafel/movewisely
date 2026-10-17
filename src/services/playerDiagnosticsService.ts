@@ -35,6 +35,7 @@ import { gameAnalysisService, AnalyzedGameRecord, AnalyzedMoveRecord } from './g
 import { isMoveInOpeningBook } from './openingBook';
 import { coachingService } from './coachingService';
 import { ACCURACY_ENGINE_VERSION } from './accuracyEngine';
+import { estimateRatingTimeline } from './ratingTimelineService';
 
 export class PlayerDiagnosticsService {
   /**
@@ -641,19 +642,23 @@ export class PlayerDiagnosticsService {
       weakestPhaseLossPct,
       topLeakOpening,
       recurringWeaknesses,
+      allEvidences,
+      totalGames,
     });
 
-    const coreFocus =
-      weakestPhaseLossPct >= 50
-        ? `Eliminating ${weakestPhase.toLowerCase()} tactical collapses (${weakestPhaseLossPct}% of losses)`
-        : blundersPerGame > targetBenchmark.expectedBlundersPerGame * 1.2
-        ? `Cutting your ${blundersPerGame} blunders/game to ${targetBenchmark.expectedBlundersPerGame}`
-        : `Improving overall precision from ${overallAccuracy}% to ${targetBenchmark.expectedAccuracy}%`;
+    const primaryWeakness = [...recurringWeaknesses].sort((a, b) => {
+      const severityRank = { critical: 3, moderate: 2, minor: 1 };
+      return severityRank[b.measuredSeverity] - severityRank[a.measuredSeverity]
+        || b.supportingGamesCount - a.supportingGamesCount
+        || b.supportingMovesCount - a.supportingMovesCount;
+    })[0];
+    const coreFocus = primaryWeakness
+      ? `Priority focus: ${primaryWeakness.title} — evidence in ${primaryWeakness.supportingGamesCount}/${primaryWeakness.sampleGamesCount} eligible games.`
+      : `No recurring weakness met the evidence threshold in this sample. Review the linked critical positions and collect more games before making a broad diagnosis.`;
 
-    // Rating improvement and the time required to reach a milestone cannot be
-    // inferred reliably from these game diagnostics. Do not publish a forecast.
+    const ratingTimeline = estimateRatingTimeline(completedGames.map(record => record.game), userRating, targetMilestone);
     const projectedRatingGain: number | null = null;
-    const estimatedWeeks: number | null = null;
+    const estimatedWeeks: number | null = ratingTimeline.estimatedWeeks;
 
     options?.onProgress?.('Analysis ready', 100);
 
@@ -729,6 +734,7 @@ export class PlayerDiagnosticsService {
         estimatedWeeks,
         coreFocus,
         tasks,
+        ratingTimeline,
       },
       analyzedGameRecords,
       rawGames: validGames,
@@ -1538,115 +1544,122 @@ export class PlayerDiagnosticsService {
     weakestPhaseLossPct: number;
     topLeakOpening: any;
     recurringWeaknesses: VerifiedRecurringWeakness[];
+    allEvidences: DiagnosticEvidence[];
+    totalGames: number;
   }): ActionPlanTask[] {
-    const {
-      userRating,
-      targetMilestone,
-      timeControl,
-      blundersPerGame,
-      targetBlunders,
-      hangingPieces,
-      missedFreePieces,
-      weakestPhase,
-      weakestPhaseLossPct,
-      topLeakOpening,
-    } = ctx;
+    const severityRank = { critical: 3, moderate: 2, minor: 1 };
+    const prioritizedWeaknesses = [...ctx.recurringWeaknesses]
+      .sort((a, b) =>
+        severityRank[b.measuredSeverity] - severityRank[a.measuredSeverity]
+        || b.supportingGamesCount - a.supportingGamesCount
+        || b.supportingMovesCount - a.supportingMovesCount
+      )
+      .slice(0, 3);
 
-    const tasks: ActionPlanTask[] = [];
+    const safeGameUrls = (evidences: DiagnosticEvidence[]): string[] => Array.from(new Set(
+      evidences
+        .map(e => e.gameUrl)
+        .filter(url => /^https:\/\/(?:www\.)?chess\.com\//i.test(url) || /^https:\/\/lichess\.org\//i.test(url))
+    )).slice(0, 3);
 
-    // TASK 1: Blunder / Hanging Piece reduction
-    if (userRating < 1100 || hangingPieces >= 5) {
-      tasks.push({
-        id: 'task-board-vision',
-        title: `The 3-Second Board Scan (${hangingPieces} pieces hung in analyzed games)`,
-        duration: '5 min',
-        frequency: 'Every game session',
-        description: `Verified ${hangingPieces} undefended pieces left attacked. Before making any move: stop for 3 seconds, scan all 4 corners of the board, and ask "Is my destination square defended?"`,
-        drillType: 'hanging_pieces',
-        completed: false,
-      });
-    } else {
-      tasks.push({
-        id: 'task-tactical-curb',
-        title: `Curb Fatal Blunders: Currently ${blundersPerGame}/game (Target: ${targetBlunders})`,
-        duration: '10 min',
-        frequency: 'Before playing rated games',
-        description: `Surrendering ${blundersPerGame} blunders per game is the primary barrier to ${targetMilestone}. Solve 10 rated tactical puzzles daily focusing on double attacks, pins, and undefended minor pieces.`,
-        drillType: 'tactics',
-        completed: false,
-      });
-    }
+    const tasks: ActionPlanTask[] = prioritizedWeaknesses.map((weakness, index) => {
+      let drillType: ActionPlanTask['drillType'] = weakness.recommendedDrillType;
+      let description: string;
 
-    // TASK 2: Attack on Weakest Phase
-    if (weakestPhase === 'Opening') {
-      tasks.push({
-        id: 'task-opening-phase',
-        title: ctx.recurringWeaknesses.some(w => w.id === 'weak-phase') ? `Castle Before Move 10 Rule (${weakestPhaseLossPct}% of recorded losses)` : 'Review Opening Positions',
-        duration: '10 min',
-        frequency: 'Daily review',
-        description: ctx.recurringWeaknesses.some(w => w.id === 'weak-phase') ? `${weakestPhaseLossPct}% of recorded losses were attributed to the opening in the analyzed sample. Prioritize central pawn occupation, rapid minor piece development, and kingside castling.` : 'The loss sample is too small to label the opening a recurring loss phase. Review engine-linked opening positions and collect more games.',
-        drillType: 'opening_prep',
-        completed: false,
-      });
-    } else if (weakestPhase === 'Endgame') {
-      tasks.push({
-        id: 'task-endgame-clinic',
-        title: ctx.recurringWeaknesses.some(w => w.id === 'weak-phase') ? `Endgame Review (${weakestPhaseLossPct}% of recorded losses)` : 'Review Endgame Positions',
-        duration: '15 min',
-        frequency: '3x a week',
-        description: ctx.recurringWeaknesses.some(w => w.id === 'weak-phase') ? `${weakestPhaseLossPct}% of recorded losses were attributed to the endgame in the analyzed sample. Drill basic rook and king-and-pawn endgames.` : 'The loss sample is too small to label the endgame a recurring loss phase. Review engine-linked endgame positions and collect more games.',
-        drillType: 'endgame_basics',
-        completed: false,
-      });
-    } else {
-      tasks.push({
-        id: 'task-middlegame-anchor',
-        title: ctx.recurringWeaknesses.some(w => w.id === 'weak-phase') ? `Middlegame Review (${weakestPhaseLossPct}% of recorded losses)` : 'Review Critical Middlegame Positions',
-        duration: '15 min',
-        frequency: 'Daily',
-        description: ctx.recurringWeaknesses.some(w => w.id === 'weak-phase') ? `Recorded losses were concentrated in the middlegame in this sample. Practice maintaining piece harmony and defending loose pieces before launching pawn breaks.` : 'The sample is too small to identify a recurring loss phase. Review engine-linked critical positions instead of assuming a cause.',
-        drillType: 'tactics',
-        completed: false,
-      });
-    }
+      if (drillType === 'hanging_pieces') {
+        description = `Open the linked positions before looking at the engine answer. For each one, list the opponent's checks, captures, and threats; mark every loose piece; then compare your played move with the engine choice. Finish with a 3-second destination-square and undefended-piece scan before each move.`;
+      } else if (drillType === 'tactics') {
+        description = `Replay each linked position and calculate candidate checks, captures, and direct threats before revealing the engine line. Write the opponent's strongest reply and the reason your move changes the evaluation. Add 8–12 puzzles with the same verified motif; do not count a guessed motif as solved until you can explain the full line.`;
+      } else if (drillType === 'opening_prep') {
+        description = `Study only the opening positions linked to this finding. Rebuild the position, identify the move that caused the engine-evaluated loss, and write a short repair line with the idea behind it. Do not replace an entire repertoire based on a small game sample.`;
+      } else {
+        description = `Recreate the linked late-game positions on a board, identify the actual material and king/pawn structure, and practice the relevant conversion or drawing method. Move number alone does not prove that a position is a formal endgame; verify the board first.`;
+      }
 
-    // TASK 3: Worst Opening Repertoire Patch
-    tasks.push({
-      id: 'task-opening-repertoire',
-      title: topLeakOpening?.isLeak === true ? `Review Engine-Verified Errors in ${topLeakOpening.name}` : 'Build an Opening Review Sample',
-      duration: '20 min',
-      frequency: 'Once this week',
-      description: topLeakOpening?.isLeak === true
-        ? `Across ${topLeakOpening.gamesCount} games, the score was ${topLeakOpening.scorePct}% and ${topLeakOpening.evidences?.length ?? 0} reviewed opening-error position(s) were attached. Study these positions first.`
-        : 'No recurring opening leak met the minimum evidence rule. Save and review positions before changing your repertoire.',
-      drillType: 'opening_prep',
-      completed: false,
+      if (weakness.id === 'weak-phase') {
+        description += ' The phase label uses a move-number bucket and the loss distribution is descriptive, not proof that the phase caused the result.';
+      } else if (weakness.id === 'weak-endgame-conversion') {
+        description += ' This is a move-28+ proxy, not proof of a formal endgame or why the win was not converted.';
+      } else if (weakness.id === 'weak-late-game-errors') {
+        description += ' The data does not contain clock telemetry, so this does not diagnose time trouble or fatigue.';
+      }
+
+      const evidenceGameUrls = safeGameUrls(weakness.evidences);
+      const evidenceSummary = `Engine-reviewed evidence: ${weakness.supportingMovesCount} position(s) across ${weakness.supportingGamesCount}/${weakness.sampleGamesCount} eligible games. Qualification rule: ${weakness.evidenceRule}`;
+      return {
+        id: `task-${weakness.id}`,
+        title: `${weakness.title}: focused practice`,
+        duration: index === 0 ? '12 min' : index === 1 ? '10 min' : '15 min',
+        frequency: index === 0 ? '5 days this week' : index === 1 ? '3–4 days this week' : '2–3 days this week',
+        description,
+        drillType,
+        completed: false,
+        priority: index === 0 ? 'primary' : 'secondary',
+        sourceWeaknessId: weakness.id,
+        evidenceGameCount: weakness.supportingGamesCount,
+        evidencePositionCount: weakness.supportingMovesCount,
+        evidenceSummary,
+        evidenceGameUrls,
+      };
     });
 
-    // TASK 4: Missed Tactics or Clock Discipline
-    if (missedFreePieces >= 3) {
+    // If nothing met recurrence criteria, use concrete errors only as review prompts,
+    // never dress a one-off observation up as a recurring weakness.
+    if (tasks.length === 0) {
+      const highestImpact = [...ctx.allEvidences]
+        .sort((a, b) => b.evalLossCp - a.evalLossCp)
+        .slice(0, 5);
+      const uniqueGames = new Set(highestImpact.map(e => e.gameId));
+      const urls = safeGameUrls(highestImpact);
       tasks.push({
-        id: 'task-free-pieces',
-        title: `Punish Opponent Mistakes (${missedFreePieces} free pieces overlooked)`,
-        duration: '15 min',
-        frequency: 'Daily',
-        description: `Your opponents left free undefended material on the board ${missedFreePieces} times that went unpunished. Train yourself to look for undefended enemy pieces every single turn.`,
+        id: 'task-critical-position-review',
+        title: highestImpact.length > 0 ? 'Review the highest-impact engine positions' : 'Build a clean baseline from new games',
+        duration: '12 min',
+        frequency: '3 sessions this week',
+        description: highestImpact.length > 0
+          ? 'These positions are review candidates, not proof of a recurring weakness. First annotate the position without help, then compare the played move with the engine recommendation and explain the opponent response.'
+          : 'No recurring weakness and no usable critical-position evidence were established. Play a small batch of rated games, then review critical positions before changing your training priorities.',
         drillType: 'tactics',
         completed: false,
-      });
-    } else {
-      tasks.push({
-        id: 'task-speed-control',
-        title: `Clock & Calculation Discipline in ${timeControl.toUpperCase()}`,
-        duration: '25 min',
-        frequency: 'Twice a week',
-        description: `Fast time controls encourage impulsive moves. Play 2 slower 10+0 or 15+10 games weekly to verify multi-move tactical candidates with real clock time.`,
-        drillType: 'tactics',
-        completed: false,
+        priority: 'primary',
+        evidenceGameCount: uniqueGames.size,
+        evidencePositionCount: highestImpact.length,
+        evidenceSummary: highestImpact.length > 0
+          ? `Provisional review only: ${highestImpact.length} engine-reviewed position(s) from ${uniqueGames.size} game(s). No recurring weakness met the evidence threshold.`
+          : 'No qualifying position evidence is available; this is a baseline-building task, not a diagnosis.',
+        evidenceGameUrls: urls,
       });
     }
 
-    return tasks;
+    tasks.push({
+      id: 'task-pre-move-check',
+      title: 'Pre-move safety scan',
+      duration: '5 min',
+      frequency: 'Use in every rated game',
+      description: 'Before committing to a move, check forcing replies in this order: opponent checks, captures, and threats; then check whether your moved piece or destination square becomes vulnerable. This is a general prevention routine, not a claim that every player has this specific weakness.',
+      drillType: 'hanging_pieces',
+      completed: false,
+      priority: 'maintenance',
+      evidenceSummary: 'General prevention habit; not counted as a diagnosed recurring weakness.',
+      evidenceGameCount: 0,
+      evidencePositionCount: 0,
+    });
+
+    tasks.push({
+      id: 'task-transfer-check',
+      title: 'Transfer test: play, annotate, then compare',
+      duration: '20 min',
+      frequency: 'Once this week',
+      description: `Play 3 games in your selected ${ctx.timeControl} time control. Before opening the engine, mark 2–3 critical decisions and write your candidate line. Then compare them with MoveWisely's engine review. After 15–20 additional completed games, rerun the checkup and compare per-game error rates and evidence coverage; improvement is measured, not assumed.`,
+      drillType: 'tactics',
+      completed: false,
+      priority: 'maintenance',
+      evidenceSummary: 'Progress measurement task; it does not assume the training has already fixed the weakness.',
+      evidenceGameCount: 0,
+      evidencePositionCount: 0,
+    });
+
+    return tasks.slice(0, 5);
   }
 
   /**
@@ -1761,6 +1774,7 @@ export class PlayerDiagnosticsService {
         estimatedWeeks: null,
         coreFocus: 'Play more games to generate diagnostic report.',
         tasks: [],
+        ratingTimeline: estimateRatingTimeline([], currentRating, targetMilestone),
       },
       analyzedGameRecords: [],
       rawGames: [],

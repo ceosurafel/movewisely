@@ -61,6 +61,7 @@ if (typeof Worker === 'undefined') {
 }
 
 import { playerDiagnosticsService } from '../src/services/playerDiagnosticsService';
+import { estimateRatingTimeline } from '../src/services/ratingTimelineService';
 import { SAMPLE_PROFILES } from '../src/services/sampleData';
 import { GameRecord } from '../src/types/chess';
 
@@ -202,7 +203,44 @@ async function runPhase4Tests() {
   assert(diagnostics.actionPlan.tasks.length >= 3, `Action plan has at least 3 tasks: ${diagnostics.actionPlan.tasks.length}`);
   for (const task of diagnostics.actionPlan.tasks) {
     assert(Boolean(task.id && task.title && task.description && task.duration), `Task has required fields: ${task.title}`);
+    assert(Boolean(task.priority && task.frequency && task.evidenceSummary), `Task has priority, cadence, and evidence/baseline explanation: ${task.title}`);
+    if (task.sourceWeaknessId) {
+      assert((task.evidencePositionCount ?? 0) > 0 && (task.evidenceGameCount ?? 0) >= 2, `Evidence-backed task traces to positions in 2+ games: ${task.title}`);
+    }
   }
+  assert(diagnostics.actionPlan.ratingTimeline.status === 'insufficient-history', 'Five-game demo sample does not invent a rating ETA');
+
+  const trendGames: GameRecord[] = Array.from({ length: 16 }, (_, i) => {
+    const rating = 1500 + i * 5;
+    const date = new Date(Date.UTC(2026, 0, 1 + i * 4)).toISOString().slice(0, 10);
+    return {
+      id: `trend-${i}`,
+      url: 'https://www.chess.com/game/live/123456',
+      white: { username: 'TrendPlayer', rating, result: 'win' },
+      black: { username: 'Opponent', rating: 1500, result: 'loss' },
+      userColor: 'white',
+      userRating: rating,
+      opponentUsername: 'Opponent',
+      opponentRating: 1500,
+      result: 'win',
+      termination: 'normal',
+      timeControl: 'rapid',
+      timeClass: 'rapid',
+      date,
+      pgn: '1. e4 e5 2. Nf3 Nc6',
+      movesCount: 4,
+    };
+  });
+  const timelineWithHistory = estimateRatingTimeline(trendGames, 1575, 1700);
+  assert(timelineWithHistory.status === 'estimate-available', 'A dated positive trend meeting minimum sample requirements produces a caveated ETA range');
+  assert(
+    timelineWithHistory.estimateRangeWeeks !== null
+      && timelineWithHistory.estimateRangeWeeks.min <= timelineWithHistory.estimatedWeeks!
+      && timelineWithHistory.estimatedWeeks! <= timelineWithHistory.estimateRangeWeeks.max,
+    'Estimated weeks stays within the broad historical-pace scenario range'
+  );
+  const timelineWithoutTrend = estimateRatingTimeline(trendGames.slice(0, 5), 1520, 1700);
+  assert(timelineWithoutTrend.status === 'insufficient-history', 'Sparse dated ratings refuse timeline extrapolation');
 
   // -------------------------------------------------------------
   // TEST 9: Insufficient Data & Corrupt Game Exclusion
