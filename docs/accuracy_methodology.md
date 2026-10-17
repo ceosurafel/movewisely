@@ -98,3 +98,12 @@ Changes to evaluation mapping, grade thresholds, mate handling, or aggregation r
 Each analyzed move preserves two separate engine lines: the best-move principal variation from the position **before** the played move, and the opponent's continuation line from the position **after** it. Best-move selection uses the former; refutation explanations and move-triggered tactical checks use the latter. These lines must not be interchanged because their first move is legal only from its own root position.
 
 A large centipawn/score-proxy drop is evidence of an evaluation loss, not by itself evidence of a fork, pin, hanging piece, or forced mate. Specific tactical labels require supporting board geometry and/or a legal after-move engine continuation. When no specific motif is substantiated, the evidence remains an evaluation drop rather than being labelled a tactical mistake.
+
+
+## Personalized training plan and rating timeline
+
+Training tasks are ranked from recurring weaknesses that meet the report's evidence rules. Each such task records its distinct supporting-game count, reviewed-position count, and qualification rule; the report provides a few source-game links so the user can return to the underlying games. When no weakness passes a recurrence threshold, the plan labels the best reviewed positions as provisional review prompts rather than claiming a recurring weakness.
+
+The four-week cycle is a structured practice-and-reassessment block, not a promise that a rating target will be reached in four weeks. A milestone ETA is shown only if the completed games contain at least 10 actual player-rating observations across 8 distinct dates spanning at least 28 days. The estimate is a broad extrapolation from early-to-recent game-rating samples; it does not model training adherence, opponents, matchmaking volatility, study quality, or the player's wider development. When the sample is too short or the observed trend is flat/downward, the correct result is “not estimable”, not an invented deadline. Re-run the checkup after additional rated games and evaluate whether the specific evidence-backed error rates changed.
+
+Synthetic/demo games are excluded from rating-trend estimation even if they contain dates and rating-looking values.

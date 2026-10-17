@@ -5,7 +5,7 @@
  * from Phase 2 (Stockfish 19 engine analysis) and Phase 3 (MoveWisely Accuracy V1.1 (Experimental; Uncalibrated)).
  */
 
-import { GameRecord, LeakItem, SpotlightMove, ActionPlanTask, Platform, TimeControl, AnalysisStatus } from './chess';
+import { GameRecord, LeakItem, SpotlightMove, ActionPlanTask, Platform, TimeControl, AnalysisStatus, RatingTimelineEstimate } from './chess';
 import { AnalyzedGameRecord, AnalyzedMoveRecord } from '../services/gameAnalysisService';
 
 /**
@@ -224,6 +224,7 @@ export interface PlayerDiagnosticsResult {
     estimatedWeeks: number | null;
     coreFocus: string;
     tasks: ActionPlanTask[];
+    ratingTimeline: RatingTimelineEstimate;
   };
 
   // Analyzed game records
