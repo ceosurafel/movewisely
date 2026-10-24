@@ -15,6 +15,23 @@ function validRating(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : null;
 }
 
+/**
+ * Return the newest Chess.com games first, regardless of archive ordering.
+ * The public archive API groups games by month and returns each month oldest-first;
+ * reversing each archive independently can accidentally select older games when
+ * a month contains more games than the requested sample.
+ */
+export function selectMostRecentChessComGames<T extends { end_time?: number }>(games: T[], limit = 20): T[] {
+  const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 20;
+  return [...games]
+    .sort((a, b) => {
+      const aTime = Number.isFinite(a.end_time) ? a.end_time as number : Number.NEGATIVE_INFINITY;
+      const bTime = Number.isFinite(b.end_time) ? b.end_time as number : Number.NEGATIVE_INFINITY;
+      return bTime - aTime;
+    })
+    .slice(0, safeLimit);
+}
+
 function missingUserRating(username: string, platform: string): never {
   throw new Error(`${platform} did not provide a verified rating for "${username}". No rating-based report was generated.`);
 }
@@ -116,7 +133,7 @@ async function fetchChessComGames(username: string, timeControl: TimeControl): P
         if (Array.isArray(games)) {
           // Filter by time class
           const matching = games.filter(g => g.time_class === timeControl && g.rules === 'chess');
-          rawGames.push(...matching.reverse());
+          rawGames.push(...matching);
         }
       }
     } catch {
@@ -128,7 +145,9 @@ async function fetchChessComGames(username: string, timeControl: TimeControl): P
     throw new Error(`No recent ${timeControl} games found on Chess.com for ${username}`);
   }
 
-  const selectedGames = rawGames.slice(0, 20);
+  // Sort across all fetched archives, not just within each month, so the report
+  // consistently analyzes the most recent matching games.
+  const selectedGames = selectMostRecentChessComGames(rawGames, 20);
   const formattedGames: GameRecord[] = selectedGames.map((g, idx) => {
     const isUserWhite = g.white.username.toLowerCase() === username.toLowerCase();
     const userObj = isUserWhite ? g.white : g.black;
