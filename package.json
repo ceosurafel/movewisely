@@ -21,6 +21,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/canvas-confetti": "^1.9.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "body-parser": "1.20.9",
     "canvas-confetti": "^1.9.4",
     "chess.js": "^1.4.0",
     "dotenv": "^17.2.3",
