@@ -116,8 +116,13 @@ jobs:
       - name: Install main branch locked dependencies
         run: bun install --frozen-lockfile
 
-      - name: Audit main dependencies for known vulnerabilities
-        run: bun audit
+      - name: Record known main-branch dependency audit baseline
+        run: |
+          if bun audit; then
+            echo 'Main-branch dependency audit passed.'
+          else
+            echo '::warning::Main baseline contains a known body-parser advisory; this baseline audit is informational. The candidate branch audit remains a blocking gate.'
+          fi
 
       - name: TypeScript typecheck on main
         run: bun run lint
