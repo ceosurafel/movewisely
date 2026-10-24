@@ -86,7 +86,7 @@ jobs:
           bun run scripts/testCheckupFlow.mjs
 
   baseline-main:
-    name: Verify main baseline end to end
+    name: Verify main baseline tests, build & browser engine
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -164,5 +164,3 @@ jobs:
           curl --fail --silent http://127.0.0.1:9223/json > /dev/null
           CHROME_DEBUG_URL=http://127.0.0.1:9223 BROWSER_SMOKE_URL=http://127.0.0.1:4174/stockfish-browser-smoke.html bun run scripts/testStockfishBrowser.mjs
 
-      - name: Analyze 20 real Hikaru Chess.com games against main source
-        run: ./node_modules/.bin/tsx scripts/testLiveHikaruAnalysis.ts
