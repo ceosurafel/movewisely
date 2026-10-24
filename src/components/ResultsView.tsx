@@ -6,6 +6,7 @@ import { ChessBoardView } from './ChessBoardView';
 import { ShareReportModal } from './ShareReportModal';
 import { GameHistoryList } from './GameHistoryList';
 import { GameAnalyzerPanel } from './GameAnalyzerPanel';
+import { buildPersonalizedTrainingPlan } from '../services/personalizedTrainingPlan';
 
 interface ResultsViewProps {
   analysis: CheckupAnalysis;
@@ -94,9 +95,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [showShareModal, setShowShareModal] = useState(false);
   const [showGameAnalyzer, setShowGameAnalyzer] = useState(false);
   const [showGamesList, setShowGamesList] = useState(false);
-  const [tasks, setTasks] = useState<ActionPlanTask[]>(analysis.actionPlan.tasks);
+  const [tasks, setTasks] = useState<ActionPlanTask[]>(() => buildPersonalizedTrainingPlan(analysis.actionPlan.tasks, {
+    dailyPracticeBudget,
+    goalStyle,
+    timeControl: analysis.timeControl,
+  }));
   const [planStarted, setPlanStarted] = useState(false);
   const ratingTimeline = analysis.actionPlan.ratingTimeline;
+  const completedGameCount = analysis.completedGamesCount ?? analysis.totalGames;
   const tasksForBudget = useMemo(() => {
     const maxTasks = dailyPracticeBudget === '5–15 min' ? 1 : dailyPracticeBudget === '15–30 min' ? 2 : tasks.length;
     return tasks.slice(0, maxTasks);
@@ -996,10 +1002,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     PERSONALIZED ROADMAP
                   </span>
                   <h2 className="text-2xl sm:text-3xl font-black text-white mt-0.5">
-                    The road to {analysis.targetMilestone}
+                    The road to {analysis.targetMilestone}{goalStyle === 'beyond' ? ' and beyond' : ''}
                   </h2>
                   <p className="text-xs text-slate-400 mt-1">
                     {analysis.actionPlan.coreFocus}
+                  </p>
+                  <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                    Personalized for <span className="text-slate-300 font-semibold">{analysis.username}</span> · {analysis.platform === 'chesscom' ? 'Chess.com' : 'Lichess'} {analysis.timeControl.toUpperCase()} · {completedGameCount} completed game(s) reviewed · {analysis.currentRating} → {analysis.targetMilestone}{goalStyle === 'beyond' ? '+' : ''}
+                  </p>
+                  <p className="mt-1 text-[10px] leading-relaxed text-slate-500">
+                    Task order and drill length use your study budget and goal. Diagnostic tasks retain their engine-reviewed positions and source games; provisional review is labeled when no recurring weakness qualifies.
                   </p>
                   <p className="mt-3 inline-flex items-center rounded-full border border-teal-900/70 bg-teal-950/30 px-3 py-1.5 text-[10px] text-teal-200">
                     Your available training time: {dailyPracticeBudget} per day
@@ -1039,19 +1051,19 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   <div className="grid sm:grid-cols-2 gap-2">
                     <div className="rounded-xl bg-black/25 p-3">
                       <p className="text-xs font-bold text-teal-200">Week 1 · Understand</p>
-                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Replay the evidence-linked positions for your top priority and write what you missed before viewing the engine line.</p>
+                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Replay the evidence-linked positions for {tasks[0]?.title ?? 'your highest-impact reviewed positions'} and write what you missed before viewing the engine line.</p>
                     </div>
                     <div className="rounded-xl bg-black/25 p-3">
                       <p className="text-xs font-bold text-teal-200">Week 2 · Train</p>
-                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Repeat the matching drill on 4–5 study days. Track whether you can explain the threat and best response without hints.</p>
+                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">{dailyPracticeBudget === '5–15 min' ? 'Repeat one short priority drill in 8-minute sessions; consistency is more useful than stacking unrelated tasks.' : dailyPracticeBudget === '15–30 min' ? (goalStyle === 'milestone' ? 'Keep the highest-impact weakness as the main drill and pair it with a brief safety habit. Revisit secondary weaknesses on later sessions.' : 'Alternate your top two distinct evidenced weaknesses across the week, staying within your available 15–30 minutes.') : (goalStyle === 'milestone' ? 'Use the longer study block to deepen your top weakness, then complete the safety and transfer drills without treating volume as proof of improvement.' : 'Rotate the distinct evidence-backed weaknesses, leaving time for transfer practice and a weekly review.')}</p>
                     </div>
                     <div className="rounded-xl bg-black/25 p-3">
                       <p className="text-xs font-bold text-teal-200">Week 3 · Transfer</p>
-                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Apply the routine in rated games, annotate critical moments first, then compare against engine analysis.</p>
+                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">{analysis.timeControl === 'rapid' ? 'In rapid games, identify two candidate moves and the opponent’s strongest reply in your post-game notes before opening the engine.' : analysis.timeControl === 'blitz' ? 'In blitz games, use a compact checks–captures–threats scan during play and save deep calculation for the post-game review.' : 'In bullet games, keep the live-play scan brief and do the full calculation after the game; do not treat engine-depth lines as a live time target.'}</p>
                     </div>
                     <div className="rounded-xl bg-black/25 p-3">
                       <p className="text-xs font-bold text-teal-200">Week 4 · Measure</p>
-                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Re-run the checkup after 15–20 additional completed games and compare the same per-game errors. Keep or change the plan based on new evidence.</p>
+                      <p className="text-[11px] leading-relaxed text-slate-400 mt-1">Re-run the checkup after 15–20 additional completed games and compare this same finding per game. {goalStyle === 'beyond' ? 'If the pattern is becoming less frequent, widen practice to the next distinct evidenced weakness; do not assume a rating rise.' : 'Keep the plan if the finding recurs; adjust it only when the new evidence supports a change.'}</p>
                     </div>
                   </div>
                   <div className="border-t border-teal-950 pt-3">

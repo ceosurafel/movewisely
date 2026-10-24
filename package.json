@@ -15,7 +15,8 @@
     "test:diagnostics": "tsx scripts/testPhase4Diagnostics.ts",
     "test:coaching": "tsx scripts/testPhase5Coaching.ts",
     "test:regression": "tsx scripts/testPhase6RegressionAudit.ts",
-    "test": "tsx scripts/testEngine.ts && tsx scripts/testGameAnalysis.ts && tsx scripts/testPhase3Accuracy.ts && tsx scripts/testPhase4Diagnostics.ts && tsx scripts/testPhase5Coaching.ts && tsx scripts/testPhase6RegressionAudit.ts"
+    "test": "tsx scripts/testEngine.ts && tsx scripts/testGameAnalysis.ts && tsx scripts/testPersonalizedTrainingPlan.ts && tsx scripts/testPhase3Accuracy.ts && tsx scripts/testPhase4Diagnostics.ts && tsx scripts/testPhase5Coaching.ts && tsx scripts/testPhase6RegressionAudit.ts",
+    "test:training-plan": "tsx scripts/testPersonalizedTrainingPlan.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -32,6 +32,8 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Audit all dependencies for known vulnerabilities
+        id: dependency_audit
+        continue-on-error: true
         run: bun audit
 
       - name: TypeScript typecheck
@@ -85,6 +87,14 @@ jobs:
           bun run scripts/testStockfishBrowser.mjs
           bun run scripts/testCheckupFlow.mjs
 
+      # Preserve the audit as a hard release gate, but run the code/test checks above
+      # even when a newly disclosed advisory causes bun audit to fail.
+      - name: Enforce dependency audit release gate
+        if: always() && steps.dependency_audit.outcome == 'failure'
+        run: |
+          echo "::error::Dependency audit failed. Fix or remove the vulnerable dependency before merging."
+          exit 1
+
   baseline-main:
     name: Verify main baseline end to end
     runs-on: ubuntu-latest
@@ -117,6 +127,8 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Audit main dependencies for known vulnerabilities
+        id: main_dependency_audit
+        continue-on-error: true
         run: bun audit
 
       - name: TypeScript typecheck on main
@@ -161,3 +173,9 @@ jobs:
 
       - name: Analyze 20 real Hikaru Chess.com games against main source
         run: ./node_modules/.bin/tsx scripts/testLiveHikaruAnalysis.ts
+
+      - name: Enforce main baseline dependency audit release gate
+        if: always() && steps.main_dependency_audit.outcome == 'failure'
+        run: |
+          echo "::error::Main baseline dependency audit failed. This check remains blocking until the baseline dependency is remediated."
+          exit 1
