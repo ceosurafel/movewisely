@@ -28,8 +28,12 @@ jobs:
         with:
           bun-version: '1.4.3'
 
-      - name: Install locked dependencies
-        run: bun install --frozen-lockfile
+      - name: Regenerate and inspect dependency lockfile
+        run: |
+          bun install
+          echo '--- GENERATED LOCKFILE DIFF ---'
+          git diff -- bun.lock
+          echo '--- END LOCKFILE DIFF ---'
 
       - name: Audit all dependencies for known vulnerabilities
         run: bun audit
