@@ -6,6 +6,7 @@
  * smoke-test, not treated as a stable offline unit test.
  */
 import { createRequire } from 'module';
+import { Chess } from 'chess.js';
 
 if (typeof Worker === 'undefined') {
   const require = createRequire(import.meta.url);
@@ -125,6 +126,57 @@ async function main(): Promise<void> {
           throw new Error(`Malformed UCI best move ${move.bestMoveUci} in game ${record.game.id}, move ${move.moveNumber}.`);
         }
       }
+    }
+
+    // Validate every diagnostic claim against a legal position from the real analyzed sample.
+    const completedGameById = new Map(
+      report.analyzedGameRecords
+        .filter(record => record.status === 'completed')
+        .map(record => [record.game.id, record])
+    );
+    const validateEvidence = (evidence: {
+      gameId: string; gameUrl: string; fenBefore: string; fenAfter: string;
+      playedSan: string; bestMoveSan: string; moveNumber: number;
+    }, label: string): void => {
+      const record = completedGameById.get(evidence.gameId);
+      if (!record || record.game.url !== evidence.gameUrl) {
+        throw new Error(`Diagnostic evidence ${label} points outside the completed real-game sample.`);
+      }
+      const position = new Chess(evidence.fenBefore);
+      if (!position.moves().includes(evidence.playedSan)) {
+        throw new Error(`Diagnostic evidence ${label} has illegal played move ${evidence.playedSan} at move ${evidence.moveNumber}.`);
+      }
+      if (!position.moves().includes(evidence.bestMoveSan)) {
+        throw new Error(`Diagnostic evidence ${label} has illegal engine recommendation ${evidence.bestMoveSan} at move ${evidence.moveNumber}.`);
+      }
+      position.move(evidence.playedSan);
+      if (position.fen() !== evidence.fenAfter) {
+        throw new Error(`Diagnostic evidence ${label} FEN-after does not match replay of ${evidence.playedSan}.`);
+      }
+    };
+
+    console.log(`recurringWeaknesses=${report.recurringWeaknesses.length}`);
+    for (const weakness of report.recurringWeaknesses) {
+      const distinctEvidenceGames = new Set(weakness.evidences.map(evidence => evidence.gameId));
+      if (weakness.supportingGamesCount < weakness.minimumSupportingGamesRequired
+        || distinctEvidenceGames.size !== weakness.supportingGamesCount
+        || weakness.supportingMovesCount !== weakness.evidences.length
+        || weakness.sampleGamesCount < weakness.supportingGamesCount
+        || !weakness.evidenceRule.trim()) {
+        throw new Error(`Recurring weakness failed its evidence threshold/integrity checks: ${weakness.id}.`);
+      }
+      for (const evidence of weakness.evidences) validateEvidence(evidence, `weakness ${weakness.id}`);
+      console.log(`WEAKNESS ${weakness.id}: supportingGames=${weakness.supportingGamesCount}/${weakness.sampleGamesCount}; supportingPositions=${weakness.supportingMovesCount}; rule=${weakness.evidenceRule}`);
+    }
+
+    console.log(`tacticalPatterns=${report.tacticalPatterns.length}`);
+    for (const pattern of report.tacticalPatterns) {
+      const evidences = pattern.sampleEvidences;
+      if (pattern.occurrences <= 0 || evidences.length === 0) {
+        throw new Error(`Tactical pattern lacks occurrence/evidence support: ${pattern.id}.`);
+      }
+      for (const evidence of evidences) validateEvidence(evidence, `tactical pattern ${pattern.id}`);
+      console.log(`TACTICAL ${pattern.id}: theme=${pattern.theme}; occurrences=${pattern.occurrences}; validatedSamplePositions=${evidences.length}`);
     }
 
     if (report.completedGamesCount !== requestedGames || report.partialGamesCount !== 0 || report.failedGamesCount !== 0) {
