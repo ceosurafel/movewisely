@@ -124,7 +124,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     const recurring = (analysis.diagnostics as any)?.recurringWeaknesses;
     const evidenceFor = (leak: typeof analysis.leaks[number]) =>
       Array.isArray(recurring)
-        ? recurring.find((item: any) => item.id === leak.id || item.title === leak.title)
+        ? recurring.find((item: any) => item.id === leak.id || item.title === leak.title || item.category === leak.category)
         : undefined;
     return [...analysis.leaks].map(leak => {
       const evidence = evidenceFor(leak);
