@@ -113,20 +113,6 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     } catch { return null; }
   });
 
-  useEffect(() => {
-    if (analysis.status !== 'completed' || analysis.completedGamesCount < 3) return;
-    try {
-      window.localStorage.setItem(baselineKey, JSON.stringify({
-        analyzedAt: analysis.analyzedAt,
-        completedGamesCount: analysis.completedGamesCount,
-        accuracy: analysis.accuracy,
-        blundersPerGame: analysis.blundersPerGame,
-        mistakesPerGame: Number((analysis.diagnostics as any)?.mistakesPerGame ?? 0),
-        totalAnalyzedMoves: Number((analysis.diagnostics as any)?.totalAnalyzedMoves ?? 0),
-      }));
-    } catch { /* Private browsing/storage limits must not block the report. */ }
-  }, [baselineKey, analysis]);
-
   const reassessmentDelta = previousBaseline ? {
     accuracy: Number((analysis.accuracy - previousBaseline.accuracy).toFixed(1)),
     blunders: Number((analysis.blundersPerGame - previousBaseline.blundersPerGame).toFixed(2)),
@@ -1121,8 +1107,29 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       <p className="text-[10px] leading-relaxed text-slate-500 mt-3">These are descriptive changes, not proof that training caused them. Compare similar sample sizes and use completed games only.</p>
                     </>
                   ) : (
-                    <p className="text-[11px] leading-relaxed text-slate-400 mt-2">This completed checkup is your starting baseline. After at least 3 completed games in a later checkup on this same account and time control, MoveWisely can compare the same metrics. Baselines stay in this browser.</p>
+                    <p className="text-[11px] leading-relaxed text-slate-400 mt-2">No saved baseline exists yet. Save this completed checkup as your starting point; a later checkup on this same account and time control can compare the same metrics. Baselines stay in this browser.</p>
                   )}
+                  <button
+                    type="button"
+                    disabled={analysis.status !== 'completed' || analysis.completedGamesCount < 3}
+                    onClick={() => {
+                      try {
+                        window.localStorage.setItem(baselineKey, JSON.stringify({
+                          analyzedAt: analysis.analyzedAt,
+                          completedGamesCount: analysis.completedGamesCount,
+                          accuracy: analysis.accuracy,
+                          blundersPerGame: analysis.blundersPerGame,
+                          mistakesPerGame: Number((analysis.diagnostics as any)?.mistakesPerGame ?? 0),
+                          totalAnalyzedMoves: Number((analysis.diagnostics as any)?.totalAnalyzedMoves ?? 0),
+                        }));
+                        window.location.reload();
+                      } catch { /* Storage unavailable: keep the current report usable. */ }
+                    }}
+                    className="mt-3 rounded-lg border border-teal-700/60 bg-teal-950/40 px-3 py-2 text-[11px] font-semibold text-teal-200 disabled:opacity-40"
+                  >
+                    Save this checkup as baseline
+                  </button>
+                  <p className="text-[10px] text-slate-600 mt-2">Saving replaces the previous baseline. This lets you compare a later checkup against a deliberate starting point.</p>
                 </section>
 
                 {/* Four-week training cycle: training horizon, not a promised rating arrival date. */}
