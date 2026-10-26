@@ -88,7 +88,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   dailyPracticeBudget = '15–30 min',
   goalStyle = 'milestone',
 }) => {
-  const [currentSlide, setCurrentSlide] = useState(0);
+  // Open directly on the diagnosis so users see the actionable finding first.
+  const [currentSlide, setCurrentSlide] = useState(6);
   const [slideProgress, setSlideProgress] = useState(0);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -97,6 +98,45 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [tasks, setTasks] = useState<ActionPlanTask[]>(analysis.actionPlan.tasks);
   const [planStarted, setPlanStarted] = useState(false);
   const ratingTimeline = analysis.actionPlan.ratingTimeline;
+
+  // Reassessment baseline is keyed to the same player, platform, and time control.
+  // It stores comparable aggregate metrics only; it never promises rating growth.
+  const baselineKey = `movewisely:baseline:v1:${analysis.platform}:${analysis.timeControl}:${analysis.username.trim().toLowerCase()}`;
+  const [previousBaseline] = useState<{
+    analyzedAt: string; completedGamesCount: number; accuracy: number; blundersPerGame: number;
+    mistakesPerGame: number; totalAnalyzedMoves: number;
+  } | null>(() => {
+    try {
+      const raw = window.localStorage.getItem(baselineKey);
+      if (!raw) return null;
+      const value = JSON.parse(raw);
+      return value && Number.isFinite(value.accuracy) && Number.isFinite(value.blundersPerGame) ? value : null;
+    } catch { return null; }
+  });
+
+  const reassessmentDelta = previousBaseline ? {
+    accuracy: Number((analysis.accuracy - previousBaseline.accuracy).toFixed(1)),
+    blunders: Number((analysis.blundersPerGame - previousBaseline.blundersPerGame).toFixed(2)),
+  } : null;
+
+  const rankedLeaks = useMemo(() => {
+    const severityWeight = { critical: 3, moderate: 2, minor: 1 } as const;
+    const recurring = (analysis.diagnostics as any)?.recurringWeaknesses;
+    const evidenceFor = (leak: typeof analysis.leaks[number]) =>
+      Array.isArray(recurring)
+        ? recurring.find((item: any) => item.id === leak.id || item.title === leak.title || item.category === leak.category)
+        : undefined;
+    return [...analysis.leaks].map(leak => {
+      const evidence = evidenceFor(leak);
+      const evidenceCount = Array.isArray(evidence?.evidences) ? evidence.evidences.length : 0;
+      const supportingGames = Number(evidence?.supportingGamesCount ?? 0);
+      const severity = severityWeight[leak.severity] * 30;
+      const impact = Math.max(0, Math.min(100, Number(leak.userNumeric) || 0)) * 0.25;
+      const recurrence = Math.min(100, supportingGames * 10);
+      const confidence = evidence && supportingGames >= Number(evidence.minimumSupportingGamesRequired ?? 2) ? 15 : 0;
+      return { ...leak, evidence, evidenceCount, priorityScore: severity + impact + recurrence + confidence };
+    }).sort((a, b) => b.priorityScore - a.priorityScore);
+  }, [analysis.leaks, analysis.diagnostics]);
   const tasksForBudget = useMemo(() => {
     const maxTasks = dailyPracticeBudget === '5–15 min' ? 1 : dailyPracticeBudget === '15–30 min' ? 2 : tasks.length;
     return tasks.slice(0, maxTasks);
@@ -889,7 +929,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     YOUR LEAKS
                   </h2>
                   <p className="text-xs text-slate-400">
-                    Ranked by observed severity and frequency in the analyzed games
+                    Priority considers severity, evaluation impact, recurrence, and evidence coverage
                   </p>
                 </div>
 
@@ -898,7 +938,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   className="space-y-2.5 max-h-[54vh] overflow-y-auto pr-1 my-3 select-text"
                   onClick={e => e.stopPropagation()}
                 >
-                  {analysis.leaks.map(leak => {
+                  {rankedLeaks.map((leak, index) => {
                     const isCritical = leak.severity === 'critical';
                     const isModerate = leak.severity === 'moderate';
 
@@ -915,7 +955,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       >
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-xs font-bold text-white">
-                            #{leak.rank} {leak.title}
+                            #{index + 1} {leak.title}
                           </span>
                           <span
                             className={`text-[9px] font-mono uppercase px-2 py-0.5 rounded-full font-bold ${
@@ -940,6 +980,21 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                           />
                         </div>
 
+                        <p className="text-[10px] leading-relaxed text-slate-400 mb-2">{leak.description}</p>
+                        <div className="grid grid-cols-3 gap-2 mb-2 text-[10px]">
+                          <div className="rounded-lg bg-black/30 p-2"><span className="block text-slate-500">Impact</span><span className="font-semibold text-white">{leak.impact || 'Engine loss'}</span></div>
+                          <div className="rounded-lg bg-black/30 p-2"><span className="block text-slate-500">Evidence</span><span className="font-semibold text-white">{leak.evidenceCount} positions</span></div>
+                          <div className="rounded-lg bg-black/30 p-2"><span className="block text-slate-500">Games</span><span className="font-semibold text-white">{leak.evidence?.supportingGamesCount ?? 'Not linked'}</span></div>
+                        </div>
+                        {leak.evidence?.evidences?.length > 0 && (
+                          <div className="text-[10px] text-teal-300 mb-2">
+                            Evidence links: {leak.evidence.evidences.slice(0, 3).map((item: any, i: number) => (
+                              <a key={item.gameId + '-' + item.moveNumber + '-' + i} href={item.gameUrl} target="_blank" rel="noreferrer" className="underline mr-2">
+                                {item.opponentUsername || 'Game'} · move {item.moveNumber}
+                              </a>
+                            ))}
+                          </div>
+                        )}
                         {/* Your value vs Target avg */}
                         <div className="flex items-center justify-between text-[11px] font-mono">
                           <span className={isCritical ? 'text-rose-400 font-bold' : 'text-amber-400 font-bold'}>
@@ -1029,6 +1084,54 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                       : ratingTimeline?.explanation ?? 'A rating arrival date is not estimated from a single-game-analysis snapshot. Use the training cycle to measure progress before drawing conclusions.'}
                   </p>
                 </div>
+
+                <section className="p-4 rounded-2xl bg-[#0b1419] border border-teal-900/60 mb-6" aria-labelledby="reassessment-title">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 id="reassessment-title" className="font-bold text-white text-sm">Reassessment baseline</h3>
+                    <span className="text-[10px] text-slate-500">Same account · same time control</span>
+                  </div>
+                  {reassessmentDelta ? (
+                    <>
+                      <p className="text-[11px] text-slate-400 mt-2">Compared with the saved checkup from {new Date(previousBaseline!.analyzedAt).toLocaleDateString()}.</p>
+                      <div className="grid grid-cols-2 gap-3 mt-3">
+                        <div className="rounded-xl bg-black/30 p-3">
+                          <p className="text-[10px] text-slate-400">Engine score proxy</p>
+                          <p className={`text-xl font-black ${reassessmentDelta.accuracy >= 0 ? 'text-teal-300' : 'text-rose-300'}`}>{reassessmentDelta.accuracy > 0 ? '+' : ''}{reassessmentDelta.accuracy} pts</p>
+                          <p className="text-[10px] text-slate-500">Previous {previousBaseline!.accuracy.toFixed(1)} · current {analysis.accuracy.toFixed(1)}</p>
+                        </div>
+                        <div className="rounded-xl bg-black/30 p-3">
+                          <p className="text-[10px] text-slate-400">Blunders per game</p>
+                          <p className={`text-xl font-black ${reassessmentDelta.blunders <= 0 ? 'text-teal-300' : 'text-rose-300'}`}>{reassessmentDelta.blunders > 0 ? '+' : ''}{reassessmentDelta.blunders}</p>
+                          <p className="text-[10px] text-slate-500">Previous {previousBaseline!.blundersPerGame.toFixed(2)} · current {analysis.blundersPerGame.toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <p className="text-[10px] leading-relaxed text-slate-500 mt-3">These are descriptive changes, not proof that training caused them. Compare similar sample sizes and use completed games only.</p>
+                    </>
+                  ) : (
+                    <p className="text-[11px] leading-relaxed text-slate-400 mt-2">No saved baseline exists yet. Save this completed checkup as your starting point; a later checkup on this same account and time control can compare the same metrics. Baselines stay in this browser.</p>
+                  )}
+                  <button
+                    type="button"
+                    disabled={analysis.status !== 'completed' || analysis.completedGamesCount < 3}
+                    onClick={() => {
+                      try {
+                        window.localStorage.setItem(baselineKey, JSON.stringify({
+                          analyzedAt: analysis.analyzedAt,
+                          completedGamesCount: analysis.completedGamesCount,
+                          accuracy: analysis.accuracy,
+                          blundersPerGame: analysis.blundersPerGame,
+                          mistakesPerGame: Number((analysis.diagnostics as any)?.mistakesPerGame ?? 0),
+                          totalAnalyzedMoves: Number((analysis.diagnostics as any)?.totalAnalyzedMoves ?? 0),
+                        }));
+                        window.location.reload();
+                      } catch { /* Storage unavailable: keep the current report usable. */ }
+                    }}
+                    className="mt-3 rounded-lg border border-teal-700/60 bg-teal-950/40 px-3 py-2 text-[11px] font-semibold text-teal-200 disabled:opacity-40"
+                  >
+                    Save this checkup as baseline
+                  </button>
+                  <p className="text-[10px] text-slate-600 mt-2">Saving replaces the previous baseline. This lets you compare a later checkup against a deliberate starting point.</p>
+                </section>
 
                 {/* Four-week training cycle: training horizon, not a promised rating arrival date. */}
                 <div className="p-4 rounded-2xl bg-[#0b1419] border border-teal-900/60 mb-6 space-y-3">

@@ -88,14 +88,8 @@ try {
   console.log('PASS: daily practice question, recommended default, and selectable option cards render.');
 
   await clickAndWait(
-    `(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.textContent.trim() === 'Next'); if (!b) return false; b.click(); return true; })()`,
-    'advance to rating-goal selection'
-  );
-  await waitFor(`document.body.innerText.includes('Where do you want to be?')`, 'rating goal question');
-
-  await clickAndWait(
-    `(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.textContent.trim() === 'Show me the gap'); if (!b) return false; b.click(); return true; })()`,
-    'confirm goal and start the real analysis path'
+    `(() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.textContent.trim() === 'Start my checkup'); if (!b || b.disabled) return false; b.click(); return true; })()`,
+    'start the checkup directly from the single-decision setup'
   );
 
   await waitFor(`document.body.innerText.includes('SCANNING YOUR GAMES')`, 'live analysis progress dashboard', 10_000);

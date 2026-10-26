@@ -30,7 +30,7 @@ import {
 } from '../src/services/accuracyEngine';
 import { playerDiagnosticsService } from '../src/services/playerDiagnosticsService';
 import { coachingService } from '../src/services/coachingService';
-import { fetchUserGames, resolveCurrentRating } from '../src/services/chessApi';
+import { fetchUserGames, resolveCurrentRating, selectMostRecentChessComGames } from '../src/services/chessApi';
 import { SAMPLE_PROFILES } from '../src/services/sampleData';
 import { GameRecord } from '../src/types/chess';
 
@@ -168,6 +168,25 @@ async function runCompleteAudit() {
   console.log('================================================================');
   console.log('MOVEWISELY — PHASE 6: COMPLETE ANALYSIS REGRESSION & RELEASE AUDIT');
   console.log('================================================================\n');
+
+  // ---------------------------------------------------------------------------
+  // SECTION 0: Platform Game Ordering & Sample Selection
+  // ---------------------------------------------------------------------------
+  console.log('SECTION 0: Newest-first game selection across archive boundaries...');
+  {
+    const archiveGames = [
+      { id: 'old', end_time: 100 },
+      { id: 'newest', end_time: 500 },
+      { id: 'middle', end_time: 300 },
+      { id: 'new', end_time: 400 },
+      { id: 'missing-time' },
+    ];
+    const selected = selectMostRecentChessComGames(archiveGames, 3);
+    assert(selected.map((g) => g.id).join(',') === 'newest,new,middle', 'Game selection sorts globally newest-first and limits after sorting');
+    assert(archiveGames[0].id === 'old', 'Game selection does not mutate the source archive list');
+    assert(selectMostRecentChessComGames(archiveGames, 0).length === 0, 'Zero game limit returns an empty selection');
+    assert(selectMostRecentChessComGames(archiveGames, 2.8).length === 2, 'Fractional game limits are safely floored');
+  }
 
   // ---------------------------------------------------------------------------
   // SECTION 1: Legal Move Replay & Complete FEN Reconstruction
