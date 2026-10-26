@@ -88,7 +88,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   dailyPracticeBudget = '15–30 min',
   goalStyle = 'milestone',
 }) => {
-  const [currentSlide, setCurrentSlide] = useState(0);
+  // Open directly on the diagnosis so users see the actionable finding first.
+  const [currentSlide, setCurrentSlide] = useState(6);
   const [slideProgress, setSlideProgress] = useState(0);
   const [isAutoPlay, setIsAutoPlay] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
