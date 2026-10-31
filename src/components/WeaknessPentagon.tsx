@@ -114,6 +114,15 @@ export const WeaknessPentagon: React.FC<{ analysis: CheckupAnalysis }> = ({ anal
 
       <section className="rounded-2xl border border-teal-900/60 bg-[#081519] p-4 mb-4">
         <div className="flex items-center justify-between gap-2 mb-3"><div><span className="text-[10px] uppercase tracking-widest text-teal-400">Level 2 · Category drill-down</span><h3 className="text-lg font-black text-white">{category.label} weaknesses</h3></div><span className="text-[10px] text-slate-400">{evidenceCount} linked positions</span></div>
+        <div className="flex justify-center my-2">
+          <svg viewBox="0 0 220 220" role="img" aria-label={category.label + ' detailed five-dimension radar chart'} className="w-full max-w-[260px]">
+            {[20,40,60,80,100].map(r=><polygon key={r} points={Array.from({length:5},(_,i)=>{const a=-Math.PI/2+i*Math.PI*2/5;return `${110+Math.cos(a)*82*r/100},${110+Math.sin(a)*82*r/100}`}).join(' ')} fill="none" stroke="#24434a" strokeWidth="1"/>)}
+            {category.dimensions.map((d,i)=>{const a=-Math.PI/2+i*Math.PI*2/5;const x=110+Math.cos(a)*82;const y=110+Math.sin(a)*82;return <line key={d.id} x1="110" y1="110" x2={x} y2={y} stroke="#31545a"/>})}
+            {category.dimensions.every(d=>d.evidence.length>0)&&<polygon points={category.dimensions.map((d,i)=>{const value=Math.min(100,Math.round((Math.min(500,d.evidence.reduce((sum,e)=>sum+severity(e),0)/d.evidence.length)/500)*70+Math.min(30,d.evidence.length*3)));const a=-Math.PI/2+i*Math.PI*2/5;return `${110+Math.cos(a)*82*value/100},${110+Math.sin(a)*82*value/100}`}).join(' ')} fill="#14b8a6" fillOpacity=".22" stroke="#2dd4bf" strokeWidth="2"/>}
+            {category.dimensions.map((d,i)=>{const a=-Math.PI/2+i*Math.PI*2/5;return <text key={d.id} x={110+Math.cos(a)*103} y={110+Math.sin(a)*103} fill="#a8c0c4" fontSize="8" textAnchor="middle" dominantBaseline="middle">{['1','2','3','4','5'][i]}</text>})}
+          </svg>
+        </div>
+        <p className="text-[9px] text-slate-500 text-center mb-2">Detailed pentagon · points 1–5 correspond to the selectable dimensions below. The polygon is shown only when all five dimensions have evidence.</p>
         <div className="space-y-2">
           {category.dimensions.map(d=><button type="button" key={d.id} onClick={()=>setSelectedDimension(d.id)} aria-pressed={selectedDimension===d.id} className={`w-full text-left rounded-xl border p-3 ${selectedDimension===d.id?'border-teal-500 bg-teal-950/40':'border-slate-800 bg-black/25'}`}><div className="flex justify-between gap-2"><span className="text-xs font-semibold text-white">{d.label}</span><span className="text-[10px] text-teal-300">{d.evidence.length ? `${d.evidence.length} positions` : 'Not measured'}</span></div><p className="text-[10px] text-slate-500 mt-1">{d.evidence.length ? `Evidence across ${new Set(d.evidence.map(e=>e.gameId).filter(Boolean)).size} game(s)` : 'No verified position-level evidence for this dimension in the current analysis.'}</p></button>)}
         </div>
