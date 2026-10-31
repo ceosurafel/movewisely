@@ -13,6 +13,7 @@ import { HeroSection } from './components/HeroSection';
 import { CheckupSetupFlow } from './components/CheckupSetupFlow';
 import { LoadingCheckup } from './components/LoadingCheckup';
 import { ResultsView } from './components/ResultsView';
+import { loadCheckups, saveCheckup, SavedCheckup } from './services/checkupHistory';
 import {
   HowItWorksSection,
   MilestoneBenchmarksSection,
@@ -22,7 +23,7 @@ import {
   Footer,
 } from './components/InfoSections';
 
-type CheckupView = 'landing' | 'fetching' | 'setup' | 'loading' | 'results';
+type CheckupView = 'landing' | 'fetching' | 'setup' | 'loading' | 'results' | 'history';
 type PracticeBudget = '5–15 min' | '15–30 min' | '30+ min';
 type GoalStyle = 'milestone' | 'beyond';
 
@@ -41,6 +42,8 @@ export default function App() {
 
   const [fetchedProfile, setFetchedProfile] = useState<FetchResult | null>(null);
   const [analysis, setAnalysis] = useState<CheckupAnalysis | null>(null);
+  const [history, setHistory] = useState<SavedCheckup[]>([]);
+  const [historyError, setHistoryError] = useState('');
   const [analysisNotice, setAnalysisNotice] = useState<string | undefined>(undefined);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedPracticeBudget, setSelectedPracticeBudget] = useState<PracticeBudget>('15–30 min');
@@ -144,6 +147,10 @@ export default function App() {
       );
 
       setAnalysis(computedAnalysis);
+      if (computedAnalysis.completedGamesCount > 0) {
+        try { await saveCheckup(computedAnalysis); setHistory(await loadCheckups()); setHistoryError(''); }
+        catch (historyErr) { console.warn('Could not save checkup history:', historyErr); setHistoryError('This checkup is available for this visit, but browser storage could not save it.'); }
+      }
       setView('results');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: unknown) {
@@ -162,6 +169,13 @@ export default function App() {
     setErrorMessage(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const openHistory = async () => {
+    try { setHistory(await loadCheckups()); setHistoryError(''); setView('history'); }
+    catch { setHistoryError('Could not read saved checkups from this browser.'); setView('history'); }
+  };
+
+  const openSavedCheckup = (item: SavedCheckup) => { setAnalysis(item.analysis); setView('results'); };
 
   const handleSelectSample = (sample: SampleProfile) => {
     startCheckupFlow(sample.username, sample.platform, sample.timeControl);
@@ -190,6 +204,7 @@ export default function App() {
         <Navbar
           onStartCheckupClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
           onNavigateSection={handleNavigateSection}
+          onHistoryClick={openHistory}
         />
       )}
 
@@ -264,6 +279,20 @@ export default function App() {
             currentGame={analysisProgress.currentGame}
             totalGames={analysisProgress.totalGames}
           />
+        )}
+
+        {view === 'history' && (
+          <section className="min-h-[100dvh] bg-[#060c0f] px-4 py-10 text-white">
+            <div className="max-w-4xl mx-auto">
+              <button type="button" onClick={() => setView('landing')} className="text-sm text-teal-300 mb-6">← Back to MoveWisely</button>
+              <p className="text-xs uppercase tracking-widest text-teal-400 font-mono">Your account reviews</p>
+              <h1 className="text-3xl font-black mt-1">Checkup History</h1>
+              <p className="text-sm text-slate-400 mt-2">Completed checkups are saved privately in this browser on this device.</p>
+              {historyError && <p role="alert" className="mt-4 text-sm text-amber-300">{historyError}</p>}
+              {!history.length && <div className="mt-8 rounded-2xl border border-slate-800 bg-slate-900/40 p-6 text-sm text-slate-400">No saved checkups yet. Complete a checkup and it will appear here.</div>}
+              <div className="grid gap-3 mt-6">{history.map(item => <article key={item.id} className="rounded-2xl border border-teal-900/50 bg-[#0a171b] p-4 flex flex-wrap items-center justify-between gap-4"><div><h2 className="font-bold text-white">{item.analysis.username}</h2><p className="text-xs text-slate-400 mt-1">{item.analysis.platform === 'chesscom' ? 'Chess.com' : 'Lichess'} · {item.analysis.timeControl} · {item.analysis.completedGamesCount} games</p><p className="text-xs text-slate-500 mt-1">{new Date(item.analysis.analyzedAt).toLocaleString()} · Rating {item.analysis.currentRating}</p></div><button type="button" onClick={() => openSavedCheckup(item)} className="rounded-lg bg-teal-400 px-4 py-2 text-sm font-bold text-slate-950">Open report</button></article>)}</div>
+            </div>
+          </section>
         )}
 
         {view === 'results' && analysis && (
