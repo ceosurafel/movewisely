@@ -147,12 +147,18 @@ export default function App() {
       );
 
       setAnalysis(computedAnalysis);
-      if (computedAnalysis.completedGamesCount > 0) {
-        try { await saveCheckup(computedAnalysis); setHistory(await loadCheckups()); setHistoryError(''); }
-        catch (historyErr) { console.warn('Could not save checkup history:', historyErr); setHistoryError('This checkup is available for this visit, but browser storage could not save it.'); }
-      }
       setView('results');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (computedAnalysis.completedGamesCount > 0) {
+        void saveCheckup(computedAnalysis)
+          .then(() => loadCheckups())
+          .then(setHistory)
+          .then(() => setHistoryError(''))
+          .catch(historyErr => {
+            console.warn('Could not save checkup history:', historyErr);
+            setHistoryError('This checkup is available for this visit, but browser storage could not save it.');
+          });
+      }
     } catch (err: unknown) {
       console.error('Checkup analysis failed:', err);
       const msg = err instanceof Error ? err.message : 'The chess engine could not complete the checkup';
