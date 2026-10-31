@@ -6,6 +6,7 @@ import { ChessBoardView } from './ChessBoardView';
 import { ShareReportModal } from './ShareReportModal';
 import { GameHistoryList } from './GameHistoryList';
 import { GameAnalyzerPanel } from './GameAnalyzerPanel';
+import { WeaknessPentagon } from './WeaknessPentagon';
 
 interface ResultsViewProps {
   analysis: CheckupAnalysis;
@@ -15,7 +16,7 @@ interface ResultsViewProps {
   goalStyle?: 'milestone' | 'beyond';
 }
 
-const TOTAL_SLIDES = 8;
+const TOTAL_SLIDES = 9;
 const SLIDE_DURATION = 6000;
 const STORY_SECTIONS = [
   'Overview',
@@ -25,6 +26,7 @@ const STORY_SECTIONS = [
   'Critical Move',
   'Rating Journey',
   'Your Leaks',
+  'Weakness Pentagon',
   'Personalized Training Plan',
 ] as const;
 
@@ -203,7 +205,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
   // Story playback is opt-in. The interactive board and training plan never auto-advance.
   useEffect(() => {
-    if (!isAutoPlay || currentSlide === 4 || currentSlide === 7) return;
+    if (!isAutoPlay || currentSlide === 4 || currentSlide === 8) return;
 
     const intervalTime = 50;
     const step = 100 / (SLIDE_DURATION / intervalTime);
@@ -1024,9 +1026,19 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             )}
 
             {/* ========================================================
-                SLIDE 8: “The road to {milestone}” (Plain dark page)
+                SLIDE 8: INTERACTIVE WEAKNESS PENTAGON
                ======================================================== */}
             {currentSlide === 7 && (
+              <motion.div key="slide-7-pentagon" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.35 }} className="w-full h-full">
+                <WeaknessPentagon analysis={analysis} />
+                <div className="absolute bottom-16 left-5 right-5 z-20"><button type="button" onClick={() => setCurrentSlide(8)} className="w-full py-3 rounded-xl font-black text-slate-950 bg-teal-400 hover:bg-teal-300">Build my training roadmap →</button></div>
+              </motion.div>
+            )}
+
+            {/* ========================================================
+                SLIDE 9: “The road to {milestone}” (Plain dark page)
+               ======================================================== */}
+            {currentSlide === 8 && (
               <motion.div
                 key="slide-7"
                 initial={{ opacity: 0 }}
@@ -1039,7 +1051,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 {/* Back link */}
                 <button
                   type="button"
-                  onClick={() => setCurrentSlide(6)}
+                  onClick={() => setCurrentSlide(7)}
                   className="text-xs text-teal-400 hover:text-teal-200 transition-colors cursor-pointer flex items-center gap-1.5 mb-4"
                 >
                   <span>←</span>
