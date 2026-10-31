@@ -22,6 +22,7 @@ const severity = (e: Evidence) => Math.max(0, Number(e.evalLossCp) || 0);
 
 export const WeaknessPentagon: React.FC<{ analysis: CheckupAnalysis }> = ({ analysis }) => {
   const [selected, setSelected] = useState('tactical');
+  const [selectedDimension, setSelectedDimension] = useState<string | null>(null);
   const diagnostics: any = analysis.diagnostics ?? {};
   const records: any[] = Array.isArray(diagnostics.analyzedGameRecords) ? diagnostics.analyzedGameRecords : [];
   const openings: any[] = Array.isArray(diagnostics.openings) ? diagnostics.openings : [];
@@ -86,6 +87,8 @@ export const WeaknessPentagon: React.FC<{ analysis: CheckupAnalysis }> = ({ anal
   const polygon = points.every(Boolean) ? points.map(p => p!.join(',')).join(' ') : '';
   const selectedCategory = aggregate.find(c => c.id === category.id)!;
   const evidenceCount = unique(category.dimensions.flatMap(d => d.evidence)).length;
+  const activeDimension = category.dimensions.find(d => d.id === selectedDimension) ?? null;
+  const detailEvidence = unique(activeDimension ? activeDimension.evidence : category.dimensions.flatMap(d => d.evidence));
 
   return (
     <div className="w-full h-full overflow-y-auto px-5 pt-12 pb-24 bg-gradient-to-b from-[#062126] via-[#071317] to-black text-left select-text">
@@ -104,7 +107,7 @@ export const WeaknessPentagon: React.FC<{ analysis: CheckupAnalysis }> = ({ anal
           </svg>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2">
-          {aggregate.map(item=><button key={item.id} type="button" onClick={()=>setSelected(item.id)} aria-pressed={selected===item.id} className={`rounded-lg border px-2 py-2 text-left ${selected===item.id?'border-teal-400 bg-teal-950/60':'border-slate-800 bg-black/20'}`}><span className="block text-[10px] text-slate-300">{item.label}</span><strong className="text-sm text-teal-200">{item.score===null?'Not measured':`${item.score}/100`}</strong><span className="block text-[9px] text-slate-500">{item.evidence.length} evidence positions</span></button>)}
+          {aggregate.map(item=><button key={item.id} type="button" onClick={()=>{setSelected(item.id);setSelectedDimension(null)}} aria-pressed={selected===item.id} className={`rounded-lg border px-2 py-2 text-left ${selected===item.id?'border-teal-400 bg-teal-950/60':'border-slate-800 bg-black/20'}`}><span className="block text-[10px] text-slate-300">{item.label}</span><strong className="text-sm text-teal-200">{item.score===null?'Not measured':`${item.score}/100`}</strong><span className="block text-[9px] text-slate-500">{item.evidence.length} evidence positions</span></button>)}
         </div>
         <p className="text-[10px] text-slate-500 mt-3">Weakness index: experimental, uncalibrated, 0–100; higher indicates more observed engine-loss evidence. It is not a chess skill rating.</p>
       </div>
@@ -117,8 +120,8 @@ export const WeaknessPentagon: React.FC<{ analysis: CheckupAnalysis }> = ({ anal
       </section>
 
       <section className="rounded-2xl border border-slate-800 bg-[#080e12] p-4">
-        <h3 className="text-sm font-bold text-white mb-2">Exact game and move evidence</h3>
-        {evidenceCount ? <div className="space-y-2">{unique(category.dimensions.flatMap(d=>d.evidence)).slice(0,30).map((e,i)=><article key={`${e.gameId}-${e.moveNumber}-${i}`} className="rounded-lg bg-black/30 border border-slate-800 p-3"><div className="flex justify-between gap-2"><span className="text-xs font-semibold text-white">{e.opponentUsername ? `vs ${e.opponentUsername}` : 'Analyzed game'} · move {e.moveNumber ?? '—'}</span><span className="text-[10px] text-rose-300">{e.grade ?? 'Engine evidence'}</span></div><p className="text-[11px] text-slate-300 mt-1">Played: <b>{e.playedSan ?? '—'}</b> · Engine choice: <b className="text-teal-300">{e.bestMoveSan ?? '—'}</b> · Loss: {Number.isFinite(e.evalLossCp)?`${e.evalLossCp} cp`:'not reported'}</p>{e.fenBefore&&<details className="mt-2"><summary className="cursor-pointer text-[10px] text-teal-300">Inspect position (FEN)</summary><code className="block break-all text-[9px] text-slate-400 mt-1">{e.fenBefore}</code></details>}{e.gameUrl&&<a className="inline-block mt-2 text-[10px] text-teal-300 underline" href={e.gameUrl} target="_blank" rel="noreferrer">Open source game ↗</a>}</article>)}</div> : <p className="text-xs text-slate-400">No verified positions are available for this category in this sample. MoveWisely leaves it unscored rather than treating missing evidence as zero weakness.</p>}
+        <h3 className="text-sm font-bold text-white mb-2">{activeDimension ? activeDimension.label : 'Exact game and move evidence'}</h3>
+        {detailEvidence.length ? <div className="space-y-2">{detailEvidence.slice(0,30).map((e,i)=><article key={`${e.gameId}-${e.moveNumber}-${i}`} className="rounded-lg bg-black/30 border border-slate-800 p-3"><div className="flex justify-between gap-2"><span className="text-xs font-semibold text-white">{e.opponentUsername ? `vs ${e.opponentUsername}` : 'Analyzed game'} · move {e.moveNumber ?? '—'}</span><span className="text-[10px] text-rose-300">{e.grade ?? 'Engine evidence'}</span></div><p className="text-[11px] text-slate-300 mt-1">Played: <b>{e.playedSan ?? '—'}</b> · Engine choice: <b className="text-teal-300">{e.bestMoveSan ?? '—'}</b> · Loss: {Number.isFinite(e.evalLossCp)?`${e.evalLossCp} cp`:'not reported'}</p>{e.fenBefore&&<details className="mt-2"><summary className="cursor-pointer text-[10px] text-teal-300">Inspect position (FEN)</summary><code className="block break-all text-[9px] text-slate-400 mt-1">{e.fenBefore}</code></details>}{e.gameUrl&&<a className="inline-block mt-2 text-[10px] text-teal-300 underline" href={e.gameUrl} target="_blank" rel="noreferrer">Open source game ↗</a>}</article>)}</div> : <p className="text-xs text-slate-400">No verified positions are available for this dimension in this sample. MoveWisely leaves it unscored rather than treating missing evidence as zero weakness.</p>}
       </section>
     </div>
   );
