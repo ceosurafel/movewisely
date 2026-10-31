@@ -38,11 +38,9 @@ export const CheckupSetupFlow: React.FC<CheckupSetupFlowProps> = ({
   const progress = step === 0 ? 0 : 3;
 
   const handleContinue = () => {
-    if (step === 0) {
-      setStep(1);
-      return;
-    }
-    onStart(targetMilestone, practiceBudget, goalStyle);
+    // Keep the primary path to one decision: practice budget. The next milestone
+    // is derived from the verified rating; optional goal tuning can come later.
+    onStart(targetMilestone, practiceBudget, 'milestone');
   };
 
   return (
@@ -139,7 +137,7 @@ export const CheckupSetupFlow: React.FC<CheckupSetupFlowProps> = ({
             disabled={gamesAvailable < 1}
             className="mt-4 w-full py-3.5 px-5 rounded-xl bg-[#19caba] hover:bg-[#29decf] text-[#032220] font-bold text-[13px] transition-all active:scale-[.99] disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
           >
-            {step === 0 ? 'Next' : 'Show me the gap'}
+            Start my checkup
           </button>
           <button
             type="button"

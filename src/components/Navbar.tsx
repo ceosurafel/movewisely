@@ -3,9 +3,10 @@ import React from 'react';
 interface NavbarProps {
   onStartCheckupClick: () => void;
   onNavigateSection: (sectionId: string) => void;
+  onHistoryClick: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onStartCheckupClick, onNavigateSection }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onStartCheckupClick, onNavigateSection, onHistoryClick }) => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-teal-950/60 bg-[#060c0f]/90 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -52,6 +53,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onStartCheckupClick, onNavigateS
 
         {/* Zone 3: 1-2 primary actions */}
         <div className="flex items-center gap-3">
+          <button type="button" onClick={onHistoryClick} className="hidden sm:inline-flex px-3 py-2 text-xs sm:text-sm font-semibold text-teal-200 border border-teal-900 rounded-lg hover:bg-teal-950/60">History</button>
           <button
             onClick={onStartCheckupClick}
             className="px-4 py-2 text-xs sm:text-sm font-semibold text-slate-950 bg-teal-400 hover:bg-teal-300 rounded-lg shadow-[0_0_20px_rgba(45,212,191,0.25)] transition-all hover:scale-[1.02] active:scale-[0.98] whitespace-nowrap cursor-pointer"
