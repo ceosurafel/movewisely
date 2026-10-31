@@ -44,7 +44,7 @@ export const WeaknessPentagon: React.FC<{ analysis: CheckupAnalysis }> = ({ anal
 
     const dims = (prefix: string, names: string[], evidence: Evidence[], available = true): Dimension[] =>
       names.map((label, index) => ({
-        id: prefix + '-' + index, label,
+        id: prefix + '-' + index, label, available: evidence.length > 0,
         evidence: evidence.filter(e => {
           const text = String(e.theme ?? e.grade ?? '').toLowerCase();
           if (prefix === 'tactical') {
