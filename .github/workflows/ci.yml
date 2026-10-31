@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
+      - 'deployment/**'
   pull_request:
     branches: [main, master]
 
@@ -58,7 +61,7 @@ jobs:
         with:
           chrome-version: stable
 
-      - name: Smoke test Stockfish WASM in a real browser worker
+      - name: Smoke test Stockfish WASM and complete checkup in a real browser
         env:
           CHROME_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}
         run: |
@@ -72,95 +75,21 @@ jobs:
           }
           trap cleanup EXIT
 
+          ready=false
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:4173/stockfish-browser-smoke.html > /dev/null &&
                curl --fail --silent http://127.0.0.1:9222/json > /dev/null; then
+              ready=true
               break
             fi
             sleep 1
           done
-          curl --fail --silent http://127.0.0.1:4173/stockfish-browser-smoke.html > /dev/null
-          curl --fail --silent http://127.0.0.1:9222/json > /dev/null
+          if [ "$ready" != true ]; then
+            echo "Preview server or Chrome DevTools failed to become ready."
+            cat /tmp/movewisely-preview.log || true
+            cat /tmp/movewisely-chrome.log || true
+            exit 1
+          fi
 
           bun run scripts/testStockfishBrowser.mjs
           bun run scripts/testCheckupFlow.mjs
-
-  baseline-main:
-    name: Verify main baseline tests, build & browser engine
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    steps:
-      - name: Checkout main branch
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Checkout test harness from release branch
-        uses: actions/checkout@v4
-        with:
-          ref: release-hardening/locked-ci
-          path: release-harness
-
-      - name: Add temporary live and browser test harnesses to main workspace
-        run: |
-          cp release-harness/scripts/testLiveHikaruAnalysis.ts scripts/testLiveHikaruAnalysis.ts
-          cp release-harness/scripts/stockfishBrowserSmoke.html scripts/stockfishBrowserSmoke.html
-          cp release-harness/scripts/testStockfishBrowser.mjs scripts/testStockfishBrowser.mjs
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.4.3'
-
-      - name: Install main branch locked dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Record known main-branch dependency audit baseline
-        run: |
-          if bun audit; then
-            echo 'Main-branch dependency audit passed.'
-          else
-            echo '::warning::Main baseline contains a known body-parser advisory; this baseline audit is informational. The candidate branch audit remains a blocking gate.'
-          fi
-
-      - name: TypeScript typecheck on main
-        run: bun run lint
-
-      - name: Run main regression suites
-        run: bun run test
-
-      - name: Build main production bundle
-        run: bun run build
-
-      - name: Set up headless Chrome for main
-        uses: browser-actions/setup-chrome@v2
-        id: setup-chrome-main
-        with:
-          chrome-version: stable
-
-      - name: Smoke test main Stockfish worker and WASM
-        env:
-          CHROME_PATH: ${{ steps.setup-chrome-main.outputs.chrome-path }}
-        run: |
-          cp scripts/stockfishBrowserSmoke.html dist/stockfish-browser-smoke.html
-          ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4174 > /tmp/movewisely-main-preview.log 2>&1 &
-          preview_pid=$!
-          "$CHROME_PATH" --headless --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run --no-default-browser-check --remote-debugging-address=127.0.0.1 --remote-debugging-port=9223 --remote-allow-origins="*" --user-data-dir=/tmp/movewisely-main-chrome-profile about:blank > /tmp/movewisely-main-chrome.log 2>&1 &
-          chrome_pid=$!
-          cleanup() {
-            kill "$chrome_pid" "$preview_pid" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:4174/stockfish-browser-smoke.html > /dev/null &&
-               curl --fail --silent http://127.0.0.1:9223/json > /dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          curl --fail --silent http://127.0.0.1:4174/stockfish-browser-smoke.html > /dev/null
-          curl --fail --silent http://127.0.0.1:9223/json > /dev/null
-          CHROME_DEBUG_URL=http://127.0.0.1:9223 BROWSER_SMOKE_URL=http://127.0.0.1:4174/stockfish-browser-smoke.html bun run scripts/testStockfishBrowser.mjs
-
